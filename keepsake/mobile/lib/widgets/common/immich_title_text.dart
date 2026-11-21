@@ -9,7 +9,7 @@ class ImmichTitleText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Keepsake',
+      'Ambry',
       style: TextStyle(
         fontSize: fontSize,
         fontWeight: FontWeight.w700,

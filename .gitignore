@@ -7,10 +7,11 @@ key.properties
 *.jks
 *.keystore
 
-# Unwanted / non-app directories
-immich/
-sources/
-poc-android/
+# Unwanted / non-app directories (anchored to the repo root: an unanchored "immich/" also matched
+# keepsake/mobile/android/app/src/*/kotlin/app/alextran/immich/ and hid all the app's Kotlin sources)
+/immich/
+/sources/
+/poc-android/
 .github/
 
 # Build, cache & generated outputs

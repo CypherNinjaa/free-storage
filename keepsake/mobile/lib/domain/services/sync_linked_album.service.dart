@@ -38,10 +38,7 @@ class SyncLinkedAlbumService {
   final _log = Logger("SyncLinkedAlbumService");
 
   Future<void> syncLinkedAlbums(String userId, {Completer<void>? cancellation}) async {
-    // Serverless Keepsake has no remote albums to link device albums to yet (Architecture Phase 8).
-    if (_storeService.tryGet(StoreKey.keepsakeVaultVersion) == 1) {
-      return;
-    }
+    // Keepsake albums live in the on-device index; AlbumApiRepository routes these calls there.
     final selectedAlbums = await _localAlbumRepository.getBackupAlbums();
 
     await Future.wait(

@@ -128,6 +128,54 @@ class LibraryAssetUpdate {
   double? longitude;
 }
 
+/// An album kept in the on-device index (albums have no server in Keepsake).
+class LibraryAlbum {
+  LibraryAlbum({
+    required this.id,
+    required this.name,
+    this.description,
+    this.thumbnailAssetId,
+    required this.order,
+    required this.createdAtMs,
+    required this.updatedAtMs,
+    required this.assetCount,
+  });
+
+  String id;
+  String name;
+  String? description;
+  String? thumbnailAssetId;
+
+  /// 0 = newest first, 1 = oldest first.
+  int order;
+  int createdAtMs;
+  int updatedAtMs;
+  int assetCount;
+}
+
+class AlbumAssetLink {
+  AlbumAssetLink({required this.albumId, required this.assetId});
+
+  String albumId;
+  String assetId;
+}
+
+class AlbumChanges {
+  AlbumChanges({
+    required this.albums,
+    required this.deletedAlbumIds,
+    required this.addedLinks,
+    required this.removedLinks,
+    required this.nextSeq,
+  });
+
+  List<LibraryAlbum> albums;
+  List<String> deletedAlbumIds;
+  List<AlbumAssetLink> addedLinks;
+  List<AlbumAssetLink> removedLinks;
+  int nextSeq;
+}
+
 class DiscoveredVault {
   DiscoveredVault({required this.vaultName, required this.libraryChatId, required this.systemChatId});
 
@@ -244,4 +292,32 @@ abstract class KeepsakeLibraryApi {
   /// Rebuilds the on-device index from the newest snapshot plus the Library channel history.
   @async
   int restoreIndex();
+
+  @async
+  bool getEncryptUploads();
+
+  @async
+  void setEncryptUploads(bool enabled);
+
+  @async
+  LibraryAlbum createAlbum(String name, String? description, List<String> assetIds);
+
+  /// Null fields stay unchanged; an empty description clears it.
+  @async
+  LibraryAlbum? updateAlbum(String id, String? name, String? description, String? thumbnailAssetId, int? order);
+
+  @async
+  bool deleteAlbum(String id);
+
+  /// Returns the ids that were newly added.
+  @async
+  List<String> addAlbumAssets(String albumId, List<String> assetIds);
+
+  /// Returns the ids that were removed.
+  @async
+  List<String> removeAlbumAssets(String albumId, List<String> assetIds);
+
+  /// Album changes with a sequence number in (sinceSeq, untilSeq].
+  @async
+  AlbumChanges albumChangesSince(int sinceSeq, int untilSeq);
 }

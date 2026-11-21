@@ -121,14 +121,7 @@ class _MobileLayout extends ConsumerWidget {
                 ],
         )
         .toList();
-    settings.add(
-      SettingsCard(
-        icon: Icons.auto_awesome_outlined,
-        title: context.t.whats_new,
-        subtitle: context.t.whats_new_settings_subtitle,
-        onTap: () => context.pushRoute(const WhatsNewRoute()),
-      ),
-    );
+    // "What's new" shows Immich's release notes, which do not describe this app.
     return ListView(padding: const EdgeInsets.only(top: 10.0, bottom: 60), children: [...settings]);
   }
 }
@@ -156,13 +149,6 @@ class _TabletLayout extends HookConsumerWidget {
                     selectedTileColor: context.themeData.highlightColor,
                     onTap: () => selectedSection.value = s,
                   ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: ListTile(
-                  title: Text(context.t.whats_new),
-                  leading: const Icon(Icons.auto_awesome_outlined),
-                  onTap: () => context.pushRoute(const WhatsNewRoute()),
                 ),
               ),
             ],

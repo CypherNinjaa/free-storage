@@ -19,9 +19,12 @@ import 'package:immich_mobile/providers/websocket.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/utils/error_handler.dart';
 
+/// Immich applies edits on its server. Serverless Keepsake has no edit backend for vault photos yet.
+const _serverlessEditsAvailable = false;
+
 final _stateProvider = Provider.family.autoDispose<RemoteAsset?, ActionSource>((ref, source) {
   final isSupported = ref.watch(serverInfoProvider.select((state) => state.serverVersion.supports(.syncAssetEditsV1)));
-  if (!isSupported) {
+  if (!isSupported || !_serverlessEditsAvailable) {
     return null;
   }
 

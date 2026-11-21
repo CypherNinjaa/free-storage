@@ -129,18 +129,17 @@ class _CollectionCards extends StatelessWidget {
         child: Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: [
-            _PeopleCollectionCard(),
-            _PlacesCollectionCard(),
-            _LocalAlbumsCollectionCard(),
-            _MemoriesCollectionCard(),
-          ],
+          // Serverless Keepsake: People needs on-device face recognition (Architecture Phase 9), so it is
+          // hidden until that exists. Places, on-device albums and memories are computed locally.
+          children: [_PlacesCollectionCard(), _LocalAlbumsCollectionCard(), _MemoriesCollectionCard()],
         ),
       ),
     );
   }
 }
 
+// Kept for Architecture Phase 9 (on-device faces); not shown while People is unavailable.
+// ignore: unused_element
 class _PeopleCollectionCard extends ConsumerWidget {
   const _PeopleCollectionCard();
 
@@ -430,19 +429,12 @@ class _QuickAccessButtonList extends ConsumerWidget {
     final partnerSharedWithAsync = ref.watch(sharedWithPartnerProvider);
     final partners = partnerSharedWithAsync.valueOrNull ?? [];
 
-    // Serverless mode (Architecture §4 & §10): Partner sharing hidden (single user per install).
-    final items = [
-      _QuickAccessItem(
-        leading: const Icon(Icons.folder_outlined, size: 26),
-        title: context.t.folders,
-        onTap: () => context.pushRoute(FolderRoute()),
-      ),
-      _QuickAccessItem(
-        leading: const Icon(Icons.lock_outline_rounded, size: 26),
-        title: context.t.locked_folder,
-        onTap: () => context.pushRoute(const LockedFolderRoute()),
-      ),
-    ];
+    // Serverless mode (Architecture §4 & §10): Partner sharing hidden (single user per install). Folders
+    // (server file paths) and the Locked folder (server PIN code) have no on-device equivalent yet.
+    final items = <_QuickAccessItem>[];
+    if (items.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox(height: 32));
+    }
 
     return SliverPadding(
       padding: const EdgeInsets.only(left: 16, top: 12, right: 16, bottom: 32),

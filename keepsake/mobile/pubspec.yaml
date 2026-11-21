@@ -2,7 +2,7 @@ name: immich_mobile
 description: Immich - selfhosted backup media file on mobile phone
 
 publish_to: 'none'
-version: 3.4.0-rc.0+3040000
+version: 1.0.0+1
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
@@ -149,12 +149,11 @@ flutter:
           weight: 500
         - asset: fonts/GoogleSansCode/GoogleSansCode-SemiBold.ttf
           weight: 600
+# Android launcher icons (adaptive vectors, monochrome and legacy PNGs) come from
+# ../branding/generate_ambry_logo.py; this tool would overwrite them, so it only handles iOS.
 flutter_launcher_icons:
-  image_path_android: 'assets/immich-logo.png'
-  adaptive_icon_background: '#ffffff'
-  adaptive_icon_foreground: 'assets/immich-logo-android-adaptive-icon.png'
   image_path_ios: 'assets/immich-logo-w-bg.png'
-  android: 'ic_launcher'
+  android: false
   ios: false
   remove_alpha_ios: true
 

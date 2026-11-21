@@ -385,6 +385,8 @@ class _EditAlbumDialogState extends ConsumerState<_EditAlbumDialog> {
   }
 }
 
+const bool _serverless = true;
+
 class _AlbumKebabMenu extends ConsumerWidget {
   final RemoteAlbum album;
   final VoidCallback? onDeleteAlbum;
@@ -435,16 +437,18 @@ class _AlbumKebabMenu extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final isOwner = user != null && user.id == album.ownerId;
 
+    // Serverless Keepsake albums are private: inviting people, shared links and the sharing/activity options
+    // page all need an Immich server.
     return RemoteAlbumOption(
       iconColor: iconColor,
       iconShadows: iconShadows,
       onDeleteAlbum: isOwner ? onDeleteAlbum : null,
-      onAddUsers: isOwner ? onAddUsers : null,
+      onAddUsers: isOwner && !_serverless ? onAddUsers : null,
       onAddPhotos: onAddPhotos,
       onToggleAlbumOrder: isOwner ? onToggleAlbumOrder : null,
       onEditAlbum: onEditAlbum,
-      onCreateSharedLink: isOwner ? onCreateSharedLink : null,
-      onShowOptions: onShowOptions,
+      onCreateSharedLink: isOwner && !_serverless ? onCreateSharedLink : null,
+      onShowOptions: _serverless ? null : onShowOptions,
     );
   }
 }

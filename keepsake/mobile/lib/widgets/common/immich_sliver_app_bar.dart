@@ -96,7 +96,7 @@ class _ImmichLogoWithText extends StatelessWidget {
         Icon(Icons.shield_outlined, size: 24, color: context.primaryColor),
         const SizedBox(width: 8),
         Text(
-          'Keepsake',
+          'Ambry',
           style: context.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: -0.3,

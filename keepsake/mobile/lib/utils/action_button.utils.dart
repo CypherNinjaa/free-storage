@@ -57,6 +57,21 @@ class ActionButtonContext {
   });
 }
 
+/// Actions that need an Immich server, which serverless Ambry does not have: share links, the PIN-protected
+/// locked folder, casting (the receiver cannot reach the phone's loopback media server), the web app, CLIP
+/// similarity search, server profile pictures and stacks.
+const Set<ActionButtonType> _serverOnlyActions = {
+  ActionButtonType.shareLink,
+  ActionButtonType.moveToLockFolder,
+  ActionButtonType.removeFromLockFolder,
+  ActionButtonType.cast,
+  ActionButtonType.openInBrowser,
+  ActionButtonType.similarPhotos,
+  ActionButtonType.setProfilePicture,
+  ActionButtonType.likeActivity,
+  ActionButtonType.unstack,
+};
+
 enum ActionButtonType {
   openInfo,
   likeActivity,
@@ -83,6 +98,9 @@ enum ActionButtonType {
   advancedInfo;
 
   bool shouldShow(ActionButtonContext context) {
+    if (_serverOnlyActions.contains(this)) {
+      return false;
+    }
     return switch (this) {
       ActionButtonType.advancedInfo => context.advancedTroubleshooting,
       ActionButtonType.share => true,

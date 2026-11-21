@@ -11,6 +11,7 @@ import 'package:immich_mobile/extensions/platform_extensions.dart';
 import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/presentation/widgets/backup/backup_toggle_button.widget.dart';
+import 'package:immich_mobile/presentation/widgets/backup/encrypt_uploads_tile.widget.dart';
 import 'package:immich_mobile/providers/background_sync.provider.dart';
 import 'package:immich_mobile/providers/backup/backup.provider.dart';
 import 'package:immich_mobile/providers/backup/backup_album.provider.dart';
@@ -144,6 +145,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
                       backupNotifier.stopForegroundBackup(reason: "backup button toggled off");
                     },
                   ),
+                  const EncryptUploadsTile(),
                   switch (error) {
                     BackupError.none => const SizedBox.shrink(),
                     BackupError.syncFailed => Padding(
@@ -289,16 +291,54 @@ class _BackupFooterState extends ConsumerState<_BackupFooter> with WidgetsBindin
             ),
           if (notificationStatus != PermissionStatus.granted && batteryOptimizationStatus != PermissionStatus.granted)
             const Divider(indent: 32, endIndent: 32),
+          // Phones such as Realme/Oppo/OnePlus (ColorOS), Xiaomi and Vivo freeze apps in the background a few
+          // seconds after they close, so background backup never gets to run until the user allows it.
           if (batteryOptimizationStatus != PermissionStatus.granted)
-            TextButton.icon(
-              iconAlignment: .end,
-              icon: Icon(Icons.open_in_new_outlined, color: context.colorScheme.onSurfaceSecondary),
-              label: Text(
-                context.t.battery_optimization_backup_reliability,
-                textAlign: TextAlign.left,
-                style: context.textTheme.bodySmall?.copyWith(color: context.colorScheme.onSurfaceSecondary),
+            Card(
+              elevation: 0,
+              margin: const EdgeInsets.only(top: 12, bottom: 4),
+              color: context.colorScheme.errorContainer.withValues(alpha: 0.35),
+              shape: RoundedRectangleBorder(
+                borderRadius: const BorderRadius.all(Radius.circular(20)),
+                side: BorderSide(color: context.colorScheme.error.withValues(alpha: 0.4)),
               ),
-              onPressed: () => unawaited(showBatteryOptimizationInfo()),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.battery_alert_rounded, color: context.colorScheme.error),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Background backup is paused by your phone',
+                            style: context.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Your phone stops Ambry soon after you close it, so new photos are backed up only when you '
+                      'open the app. To back up in the background, open app settings, then Battery, and allow '
+                      'background activity (or choose "Unrestricted").',
+                      style: context.textTheme.bodySmall,
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => unawaited(showBatteryOptimizationInfo()),
+                          child: const Text('Learn more'),
+                        ),
+                        TextButton(onPressed: () => unawaited(openAppSettings()), child: const Text('Open app settings')),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
         TextButton.icon(

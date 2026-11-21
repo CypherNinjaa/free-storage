@@ -29,6 +29,8 @@ class ImmichAppBarDialog extends HookConsumerWidget {
     final horizontalPadding = isHorizontal ? 100.0 : 20.0;
     final isLoggingOut = useState(false);
     final isSelfTesting = useState(false);
+    final isSnapshotting = useState(false);
+    final vaultCount = useFuture(useMemoized(() => ref.read(keepsakeLibraryApiProvider).assetCount()));
     final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
 
     useEffect(() {
@@ -49,7 +51,7 @@ class ImmichAppBarDialog extends HookConsumerWidget {
             Align(
               alignment: Alignment.center,
               child: Text(
-                'Keepsake',
+                'Ambry',
                 style: context.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
@@ -126,6 +128,37 @@ class ImmichAppBarDialog extends HookConsumerWidget {
       );
     }
 
+    /// Uploads an encrypted copy of the on-device index now; a new phone restores from the newest copy.
+    ListTile buildSnapshotButton() {
+      return buildActionButton(
+        Icons.cloud_sync_outlined,
+        'Back up library index now',
+        () async {
+          if (isSnapshotting.value) {
+            return;
+          }
+          isSnapshotting.value = true;
+          try {
+            final count = await ref.read(keepsakeLibraryApiProvider).snapshotIndex(true);
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Library index backed up to Telegram ($count items)')));
+            }
+          } on PlatformException catch (error) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
+            }
+          } finally {
+            isSnapshotting.value = false;
+          }
+        },
+        trailing: isSnapshotting.value
+            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : null,
+      );
+    }
+
     ListTile buildAppLogButton() {
       return buildActionButton(
         Icons.assignment_outlined,
@@ -189,7 +222,9 @@ class ImmichAppBarDialog extends HookConsumerWidget {
                 children: [
                   Text('Serverless Encrypted Vault', style: context.textTheme.labelLarge),
                   Text(
-                    'Storage: Private Telegram Channel (TDLib) • Zero Server',
+                    vaultCount.hasData
+                        ? '${vaultCount.data} item(s) encrypted in your private Telegram channel'
+                        : 'Storage: Private Telegram Channel (TDLib) • Zero Server',
                     style: context.textTheme.bodySmall,
                   ),
                 ],
@@ -218,7 +253,7 @@ class ImmichAppBarDialog extends HookConsumerWidget {
 
                 showLicensePage(
                   context: context,
-                  applicationName: 'Keepsake',
+                  applicationName: 'Ambry',
                   applicationVersion: packageInfo.version,
                 );
               },
@@ -285,6 +320,7 @@ class ImmichAppBarDialog extends HookConsumerWidget {
                 ),
                 if (isReadonlyModeEnabled) buildReadonlyMessage(),
                 buildSelfTestButton(),
+                buildSnapshotButton(),
                 buildAppLogButton(),
                 buildFreeUpSpaceButton(),
                 buildSettingButton(),

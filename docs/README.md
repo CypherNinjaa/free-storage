@@ -1,6 +1,6 @@
-# Immich + Telegram Android App — Project Docs
+# Ambry (Immich + Telegram Android App) — Project Docs
 
-**Project:** an Android photo/video backup app built from Immich's mobile code, storing everything in Telegram, with **no server**.
+**Project:** **Ambry**, an Android photo/video backup app built from Immich's mobile code, storing everything in Telegram, with **no server**. (Working name until 2026-11-22: "Keepsake".)
 **Code baseline:** `immich-app/immich` @ `f005e0ce44ed3c3d9a18bc8b6dbb15a22af29205`, cloned read-only at `../immich/`.
 **Telegram baseline:** Bot API 10.4 / TDLib docs, official pages snapshotted to `../sources/` (2026-11-18).
 
@@ -20,6 +20,11 @@
 |---|---|
 | [ARCHITECTURE_SERVERLESS_ANDROID.md](ARCHITECTURE_SERVERLESS_ANDROID.md) | The plan: options compared, chosen design, Immich code reuse and the exact files to replace, Telegram layout, encryption and recovery, on-device ML, backup flow, limits, what is lost without a server, phased roadmap, decisions needed |
 | [TELEGRAM_API_ANALYSIS.md](TELEGRAM_API_ANALYSIS.md) | Verified Telegram reference behind the plan: file size limits, file IDs, rate limits, history access, deletion rules, TDLib capabilities, Terms of Service, unknowns for the Phase 1 test |
+| [PHASE1_POC_LOG.md](PHASE1_POC_LOG.md) | Phase 1: TDLib on Android proof of concept |
+| [PHASE2_FORK_LOG.md](PHASE2_FORK_LOG.md) | Phase 2: Immich app fork, rebrand, local onboarding |
+| [PHASE3_TELEGRAM_STORE_LOG.md](PHASE3_TELEGRAM_STORE_LOG.md) | Phase 3: Telegram store, vault key, encryption format |
+| [PHASE4_8_LIBRARY_LOG.md](PHASE4_8_LIBRARY_LOG.md) | Phases 4–8: vault index, backup to Telegram, viewing and streaming, new-phone restore, local search and memories; device verification and bugs fixed |
+| [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) | Production readiness review: new name (Ambry) and logo, on-device albums, encryption on/off, tests of all four screens, vault-only streaming/download, background upload, release build; bugs fixed and blockers before a public launch |
 
 ## Decision log
 
@@ -29,6 +34,8 @@
 | 2026-11-18 | The Android app is built only from Immich code |
 | 2026-11-18 | **No server**: Immich app code + Telegram API = Android app |
 | 2026-11-21 | Docs for the dropped server-based and S3-based designs removed. Six files are in the Windows Recycle Bin (D: drive) if ever needed |
+| 2026-11-22 | App named **Ambry** (Keepsake was one letter from the Keepsafe photo vault); amber "sunrise in an arched alcove" logo |
+| 2026-11-22 | Encryption becomes a setting (on by default); files uploaded with it off are plain files viewable in Telegram |
 
 ## Evidence tags used in the docs
 

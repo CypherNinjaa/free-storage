@@ -71,7 +71,7 @@ class AssetApiRepository extends ApiRepository {
 
   Future<StackResponse> stack(List<String> ids) async {
     if (_keepsake != null) {
-      throw UnsupportedError('Stacking photos is not available in Keepsake yet');
+      throw UnsupportedError('Stacking photos is not available in Ambry yet');
     }
     final responseDto = await checkNull(_stacksApi.createStack(StackCreateDto(assetIds: ids)));
 
@@ -80,7 +80,7 @@ class AssetApiRepository extends ApiRepository {
 
   Future<void> unStack(List<String> ids) async {
     if (_keepsake != null) {
-      throw UnsupportedError('Stacking photos is not available in Keepsake yet');
+      throw UnsupportedError('Stacking photos is not available in Ambry yet');
     }
     return _stacksApi.deleteStacks(BulkIdsDto(ids: ids));
   }
@@ -132,7 +132,7 @@ class AssetApiRepository extends ApiRepository {
       await keepsake.updateDescription(assetId, description);
       return;
     }
-    return _api.updateAsset(assetId, UpdateAssetDto(description: Optional.present(description)));
+    await _api.updateAsset(assetId, UpdateAssetDto(description: Optional.present(description)));
   }
 
   Future<void> updateRating(String assetId, int? rating) async {
@@ -141,19 +141,19 @@ class AssetApiRepository extends ApiRepository {
       await keepsake.updateRating(assetId, rating);
       return;
     }
-    return _api.updateAsset(assetId, UpdateAssetDto(rating: Optional.present(rating)));
+    await _api.updateAsset(assetId, UpdateAssetDto(rating: Optional.present(rating)));
   }
 
   Future<AssetEditsResponseDto?> editAsset(String assetId, List<AssetEdit> edits) {
     if (_keepsake != null) {
-      throw UnsupportedError('Editing vault photos is not available in Keepsake yet');
+      throw UnsupportedError('Editing vault photos is not available in Ambry yet');
     }
     return _api.editAsset(assetId, AssetEditsCreateDto(edits: edits.map((e) => e.toApi()).toList()));
   }
 
   Future<void> removeEdits(String assetId) async {
     if (_keepsake != null) {
-      throw UnsupportedError('Editing vault photos is not available in Keepsake yet');
+      throw UnsupportedError('Editing vault photos is not available in Ambry yet');
     }
     return _api.removeAssetEdits(assetId);
   }

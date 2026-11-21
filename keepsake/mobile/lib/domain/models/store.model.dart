@@ -24,6 +24,12 @@ enum StoreKey<T> {
   keepsakeVaultVersion<int>._(2001),
   // Last on-device Telegram index sequence number projected into the Drift remote tables
   keepsakeIndexSeq<int>._(2002),
+  // Day (yyyy-MM-dd) the on-device "On this day" memories were last built for
+  keepsakeMemoriesDay<String>._(2003),
+  // Version of the index → Drift mapping last fully projected; older versions trigger one full re-projection
+  keepsakeProjectionVersion<int>._(2004),
+  // Last on-device index sequence number up to which albums were projected into the Drift remote album tables
+  keepsakeAlbumSeq<int>._(2005),
 
   // Legacy keys that have been migrated to the new metadata store
   legacyBackupRequireCharging<bool>._(7),

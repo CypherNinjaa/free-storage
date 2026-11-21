@@ -35,6 +35,9 @@ import 'package:immich_mobile/widgets/search/search_filter/search_filter_chip.da
 import 'package:immich_mobile/widgets/search/search_filter/search_filter_utils.dart';
 import 'package:immich_mobile/widgets/search/search_filter/star_rating_picker.dart';
 
+
+const bool _serverless = true;
+
 @RoutePage()
 class SearchPage extends HookConsumerWidget {
   const SearchPage({super.key});
@@ -656,18 +659,22 @@ class SearchPage extends HookConsumerWidget {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
-                    SearchFilterChip(
-                      icon: Icons.people_alt_outlined,
-                      onTap: showPeoplePicker,
-                      label: context.t.people,
-                      currentFilter: peopleCurrentFilterWidget.value,
-                    ),
-                    SearchFilterChip(
-                      icon: Icons.location_on_outlined,
-                      onTap: showLocationPicker,
-                      label: context.t.search_filter_location,
-                      currentFilter: locationCurrentFilterWidget.value,
-                    ),
+                    // Serverless: no face recognition and no place names (reverse geocoding) yet, so these
+                    // pickers would always be empty.
+                    if (!_serverless)
+                      SearchFilterChip(
+                        icon: Icons.people_alt_outlined,
+                        onTap: showPeoplePicker,
+                        label: context.t.people,
+                        currentFilter: peopleCurrentFilterWidget.value,
+                      ),
+                    if (!_serverless)
+                      SearchFilterChip(
+                        icon: Icons.location_on_outlined,
+                        onTap: showLocationPicker,
+                        label: context.t.search_filter_location,
+                        currentFilter: locationCurrentFilterWidget.value,
+                      ),
                     if (userPreferences?.tagsEnabled ?? false)
                       SearchFilterChip(
                         icon: Icons.sell_outlined,

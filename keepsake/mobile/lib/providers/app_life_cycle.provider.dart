@@ -119,15 +119,20 @@ class AppLifeCycleNotifier extends StateNotifier<AppLifeCycleEnum> {
     final isAlbumLinkedSyncEnable = _ref.read(appConfigProvider).backup.syncAlbums;
 
     try {
-      // Serverless mode: sync local MediaStore + hash assets (Telegram sync wires in Phases 3-5).
-      await _safeRun(() {
-        final full = CurrentPlatform.isAndroid || _fullSyncPending;
-        _fullSyncPending = false;
-        return backgroundManager.syncLocal(full: full);
-      }, "syncLocal");
+      // Serverless mode: device albums and the vault library (on-device Telegram index) sync together, then
+      // hashing, then the foreground backup resumes, as in Immich.
+      await Future.wait([
+        _safeRun(() {
+          final full = CurrentPlatform.isAndroid || _fullSyncPending;
+          _fullSyncPending = false;
+          return backgroundManager.syncLocal(full: full);
+        }, "syncLocal"),
+        _safeRun(backgroundManager.syncRemote, "syncRemote"),
+      ]);
       _ref.invalidate(memoryLaneProvider);
       _ref.invalidate(allMemoriesProvider);
       await _safeRun(backgroundManager.hashAssets, "hashAssets");
+      await _resumeBackup();
     } catch (e, stackTrace) {
       _log.severe("Error during background sync", e, stackTrace);
     }

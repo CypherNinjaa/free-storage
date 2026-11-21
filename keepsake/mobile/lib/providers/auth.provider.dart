@@ -154,7 +154,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         UserDto(
           id: const Uuid().v4(),
           email: telegramAccountName.isNotEmpty ? telegramAccountName : 'vault@keepsake.local',
-          name: displayName.isNotEmpty ? displayName : 'Keepsake Vault',
+          name: displayName.isNotEmpty ? displayName : 'Ambry Vault',
           isAdmin: true,
           profileChangedAt: now,
           updatedAt: now,
@@ -164,6 +164,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (existing == null) {
       // A new vault user owns no projected assets yet; project the whole Telegram index again.
       await Store.delete(StoreKey.keepsakeIndexSeq);
+      await Store.delete(StoreKey.keepsakeAlbumSeq);
     }
     await Store.put(StoreKey.deviceId, deviceId);
     await Store.put(StoreKey.currentUser, localUser);

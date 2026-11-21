@@ -31,6 +31,7 @@ final keepsakeLibrarySyncServiceProvider = Provider(
   (ref) => KeepsakeLibrarySyncService(
     api: ref.watch(keepsakeLibraryApiProvider),
     repository: ref.watch(driftProvider).syncStreamRepository,
+    memoryRepository: ref.watch(driftProvider).memoryRepository,
   ),
 );
 

@@ -47,12 +47,13 @@ class GradientBorderPainter extends CustomPainter {
   final double animation;
   final double strokeWidth;
   final double opacity = 0.7;
+  // Ambry's amber palette (Immich used its five logo colours here).
   final colors = [
-    const Color(0xFFFA2921),
-    const Color(0xFFED79B5),
-    const Color(0xFFFFB400),
-    const Color(0xFF1E83F7),
-    const Color(0xFF18C249),
+    const Color(0xFFFDB44B),
+    const Color(0xFFF9A825),
+    const Color(0xFFEE7F22),
+    const Color(0xFFB8540F),
+    const Color(0xFFF08A2E),
   ];
 
   GradientBorderPainter({required this.animation, required this.strokeWidth});

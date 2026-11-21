@@ -11,6 +11,8 @@ import 'package:immich_mobile/utils/error_handler.dart';
 import 'package:immich_mobile/widgets/common/confirm_dialog.dart';
 import 'package:logging/logging.dart';
 
+const bool _serverless = true;
+
 typedef _State = ({bool shouldLock, List<String> assetIds, List<String> localIds});
 
 final _stateProvider = Provider.family.autoDispose<_State?, ActionSource>((ref, source) {
@@ -36,6 +38,11 @@ class LockAction extends AssetActionBuilder {
 
   @override
   ActionItem? create(BuildContext context, WidgetRef ref) {
+    // Serverless: the locked folder needs an Immich server PIN and has no page in this app, so moving photos
+    // there (which also deletes the phone copy) would hide them for good.
+    if (_serverless) {
+      return null;
+    }
     final shouldLock = ref.watch(_stateProvider(source).select((state) => state?.shouldLock));
     if (shouldLock == null) {
       return null;

@@ -12,6 +12,39 @@ class MemoryRepository extends DatabaseAccessor<Drift> with $MemoryRepositoryMix
 
   Drift get _db => attachedDatabase;
 
+  /// Timeline asset ids of [ownerId] captured on [month]/[day] of a year before [beforeYear], grouped by year.
+  /// Used to build "On this day" memories on device (serverless Keepsake has no server to generate them).
+  Future<Map<int, List<String>>> getOnThisDayAssetIds(
+    String ownerId, {
+    required int month,
+    required int day,
+    required int beforeYear,
+  }) async {
+    final asset = _db.remoteAssetEntity;
+    final year = asset.localDateTime.year;
+    final query = _db.selectOnly(asset)
+      ..addColumns([asset.id, year])
+      ..where(
+        asset.ownerId.equals(ownerId) &
+            asset.deletedAt.isNull() &
+            asset.visibility.equalsValue(AssetVisibility.timeline) &
+            asset.localDateTime.month.equals(month) &
+            asset.localDateTime.day.equals(day) &
+            year.isSmallerThanValue(beforeYear),
+      )
+      ..orderBy([OrderingTerm.asc(asset.createdAt)]);
+
+    final result = <int, List<String>>{};
+    for (final row in await query.get()) {
+      final assetYear = row.read(year);
+      final id = row.read(asset.id);
+      if (assetYear != null && id != null) {
+        (result[assetYear] ??= []).add(id);
+      }
+    }
+    return result;
+  }
+
   Future<List<Memory>> getAll(String ownerId, {bool onlyToday = true, bool onlyFavorites = false}) async {
     final query =
         _db.select(_db.memoryEntity).join([

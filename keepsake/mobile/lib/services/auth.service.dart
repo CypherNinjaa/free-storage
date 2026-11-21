@@ -120,6 +120,7 @@ class AuthService {
       Store.delete(StoreKey.currentUser),
       Store.delete(StoreKey.accessToken),
       Store.delete(StoreKey.keepsakeIndexSeq),
+      Store.delete(StoreKey.keepsakeAlbumSeq),
       networkApi.clearCookies(),
       SettingsRepository.instance.clear(const [
         .networkAutoEndpointSwitching,

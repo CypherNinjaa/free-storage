@@ -29,6 +29,9 @@ import 'package:sliver_tools/sliver_tools.dart';
 
 typedef AlbumSelectorCallback = void Function(RemoteAlbum album);
 
+
+const bool _serverless = true;
+
 class AlbumSelector extends ConsumerStatefulWidget {
   final AlbumSelectorCallback onAlbumSelected;
   final Function? onKeyboardExpanded;
@@ -439,6 +442,10 @@ class _QuickFilterButtonRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Serverless albums are never shared, so "All", "Shared with me" and "My albums" would list the same albums.
+    if (_serverless) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverToBoxAdapter(

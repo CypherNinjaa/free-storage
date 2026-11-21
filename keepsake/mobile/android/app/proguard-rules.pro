@@ -45,3 +45,9 @@
 -keep class okio.** { *; }
 -keep class com.example.ok_http.** { *; }
 ##---------------End: proguard configuration for ok_http JNI ----------
+
+##---------------Begin: Ambry native TDLib bridge ----------
+# td_bridge.c exports Java_app_alextran_immich_keepsake_TdJsonBridge_* symbols, so the class and its native
+# method names must keep their exact names.
+-keep class app.alextran.immich.keepsake.TdJsonBridge { *; }
+##---------------End: Ambry native TDLib bridge ----------

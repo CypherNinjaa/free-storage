@@ -17,10 +17,13 @@ final _stateProvider = Provider.family.autoDispose<List<String>?, ActionSource>(
 class ShareLinkAction extends AssetActionBuilder {
   const ShareLinkAction({required super.source});
 
+  /// Shared links are pages served by an Immich server; serverless Keepsake has none to host them.
+  static const bool _serverless = true;
+
   @override
   ActionItem? create(BuildContext context, WidgetRef ref) {
     final remoteIds = ref.watch(_stateProvider(source));
-    if (remoteIds == null) {
+    if (_serverless || remoteIds == null) {
       return null;
     }
 

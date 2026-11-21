@@ -135,7 +135,7 @@ class BackupToggleButtonState extends ConsumerState<BackupToggleButton> with Sin
                           children: [
                             Flexible(
                               child: Text(
-                                context.t.enable_backup,
+                                'Back up to Telegram',
                                 style: context.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w600,
                                   color: context.primaryColor,

@@ -16,6 +16,9 @@ import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/infrastructure/repositories/settings.repository.dart';
 import 'package:immich_mobile/providers/auth.provider.dart';
 import 'package:immich_mobile/providers/background_sync.provider.dart';
+import 'package:immich_mobile/providers/backup/backup.provider.dart';
+import 'package:immich_mobile/providers/gallery_permission.provider.dart';
+import 'package:immich_mobile/providers/infrastructure/settings.provider.dart';
 import 'package:immich_mobile/providers/view_intent/view_intent_handler.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/services/immich_logger.service.dart';
@@ -45,7 +48,7 @@ class BootstrapErrorWidget extends StatelessWidget {
       assetLoader: const CodegenLoader(),
       child: Builder(
         builder: (lCtx) => MaterialApp(
-          title: 'Keepsake',
+          title: 'Ambry',
           debugShowCheckedModeBanner: true,
           localizationsDelegates: [...lCtx.localizationDelegates, ...fallbackLocalizationDelegates],
           supportedLocales: lCtx.supportedLocales,
@@ -304,23 +307,38 @@ class SplashScreenPageState extends ConsumerState<SplashScreenPage> {
     final hasSession = await authNotifier.resumeServerlessSession();
 
     if (!hasSession) {
-      log.info('No Keepsake vault session found; starting onboarding.');
+      log.info('No vault session found; starting onboarding.');
       if (!mounted) return;
       unawaited(context.router.replaceAll([const LoginRoute()]));
       return;
     }
 
+    // Vaults set up before the permission step was added never asked for photo access; ask once here.
+    final galleryPermission = ref.read(galleryPermissionNotifier.notifier);
+    if (!(await galleryPermission.getGalleryPermissionStatus()).hasAccess) {
+      await galleryPermission.requestGalleryPermission();
+    }
+
     final backgroundManager = ref.read(backgroundSyncProvider);
     final viewIntentHandler = ref.read(viewIntentHandlerProvider);
+    // Read now: this page is replaced by the timeline before the work below finishes.
+    final backupNotifier = ref.read(backupProvider.notifier);
+    final backupEnabled = ref.read(appConfigProvider).backup.enabled;
+    final userId = Store.tryGet(StoreKey.currentUser)?.id;
 
     unawaited(
       Future(() async {
         try {
-          await backgroundManager.syncLocal(full: true);
+          // As in Immich: device albums and the vault library (Telegram index) sync together, then hashing,
+          // then the foreground backup resumes if it is enabled.
+          await Future.wait([backgroundManager.syncLocal(full: true), backgroundManager.syncRemote()]);
           await viewIntentHandler.flushDeferredViewIntent();
           await backgroundManager.hashAssets();
+          if (backupEnabled && userId != null) {
+            await backupNotifier.startForegroundBackup(userId);
+          }
         } catch (e, st) {
-          log.warning('Local sync error on startup', e, st);
+          log.warning('Sync error on startup', e, st);
         }
       }),
     );
@@ -335,7 +353,7 @@ class SplashScreenPageState extends ConsumerState<SplashScreenPage> {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: Image(image: AssetImage('assets/immich-logo.png'), width: 80, filterQuality: FilterQuality.high),
+        child: Image(image: AssetImage('assets/ambry-logo.png'), width: 80, filterQuality: FilterQuality.high),
       ),
     );
   }
