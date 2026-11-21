@@ -1,0 +1,46 @@
+# Secrets & local credentials (NEVER commit)
+.env
+*.env
+.env.*
+local.properties
+key.properties
+*.jks
+*.keystore
+
+# Unwanted / non-app directories
+immich/
+sources/
+poc-android/
+.github/
+
+# Build, cache & generated outputs
+**/build/
+**/.dart_tool/
+**/.gradle/
+**/.cxx/
+**/target/
+keepsake/mobile/generated/
+keepsake/mobile/lib/generated/
+keepsake/mobile/test/drift/main/generated/
+keepsake/mobile/lib/routing/router.gr.dart
+keepsake/mobile/lib/**/*.g.dart
+keepsake/mobile/lib/**/*.drift.dart
+keepsake/mobile/lib/**/*.freezed.dart
+keepsake/mobile/lib/data/db/main/database.steps.dart
+
+# Large binaries & prebuilt native libraries
+*.apk
+*.aab
+*.ipa
+*.so
+*.tar.gz
+*.zip
+keepsake/mobile/android/app/src/main/jniLibs/
+
+# IDE & OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+*.log
