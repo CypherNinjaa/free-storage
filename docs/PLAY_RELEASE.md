@@ -12,7 +12,7 @@
 | 4 | Build the App Bundle | `flutter build appbundle --release` (in `keepsake/mobile`) | Output: `build/app/outputs/bundle/release/app-release.aab` (verified 2026-11-22: 184 MB bundle, about 119 MB download on an arm64 phone). Without `key.jks` the build falls back to the debug key, which Play rejects |
 | 5 | Create the app in Play Console | play.google.com/console | Enrol in **Play App Signing** (default) |
 | 6 | Store listing | §2 below | Screenshots: 2–8 phone screenshots (Photos, Albums, Backup screen, viewer) |
-| 7 | Privacy policy URL | <https://github.com/CypherNinjaa/free-storage/blob/main/docs/PRIVACY_POLICY.md> | Also linked in the app (account sheet → Privacy) |
+| 7 | Privacy policy URL | <https://cypherninjaa.github.io/free-storage/privacy/> | Hosted on Ambry's website and linked in the app (account sheet → Privacy) |
 | 8 | App content: Data safety, permissions, ads (none), content rating, target audience (18+ or 13+) | §3 and §4 below | |
 | 9 | Closed testing track first | Play Console → Testing → Closed testing | Run the new-phone restore test on a tester's phone before production |
 | 10 | Production rollout | Staged rollout (for example 20 %) | |

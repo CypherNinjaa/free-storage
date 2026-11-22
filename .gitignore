@@ -16,6 +16,8 @@ key.properties
 
 # Build, cache & generated outputs
 **/build/
+website/dist/
+website/node_modules/
 **/.dart_tool/
 **/.gradle/
 **/.cxx/
