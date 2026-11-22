@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://cypherninjaa.github.io/free-storage/sitemap.xml
+Sitemap: https://ambry.vikashin.tech/sitemap.xml

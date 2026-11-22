@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/free-storage/',
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,

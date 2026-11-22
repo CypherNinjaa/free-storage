@@ -22,7 +22,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Where Ambry's source code is published, as the AGPL requires for the Immich code it is built on.
 const _sourceCodeUrl = 'https://github.com/CypherNinjaa/free-storage';
-const _privacyPolicyUrl = 'https://cypherninjaa.github.io/free-storage/privacy/';
+const _privacyPolicyUrl = 'https://ambry.vikashin.tech/privacy/';
 
 String _ago(int epochMs) {
   final elapsed = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(epochMs));
