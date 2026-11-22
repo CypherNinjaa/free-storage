@@ -183,6 +183,38 @@ class LoginPage extends HookConsumerWidget {
       );
     }
 
+    Future<void> continueLocalGallery() async {
+      if (isBusy.value) {
+        return;
+      }
+      isBusy.value = true;
+      errorText.value = null;
+      try {
+        progressText.value = 'Opening local gallery…';
+        await ref
+            .read(authProvider.notifier)
+            .completeServerlessOnboarding(
+              displayName: 'Local Gallery',
+              telegramAccountName: 'Not connected to Telegram',
+            );
+        progressText.value = 'Allow access to your photos and videos…';
+        await ref.read(galleryPermissionNotifier.notifier).requestGalleryPermission();
+
+        final backgroundManager = ref.read(backgroundSyncProvider);
+        unawaited(backgroundManager.syncLocal(full: true).then((_) => backgroundManager.hashAssets()));
+
+        if (!context.mounted) {
+          return;
+        }
+        await context.router.replaceAll([const TabShellRoute()]);
+      } catch (e) {
+        errorText.value = 'Could not open local gallery: $e';
+      } finally {
+        progressText.value = null;
+        isBusy.value = false;
+      }
+    }
+
     final telegramStep = authStatus.value?.step;
 
     Widget buildTelegramLogin() {
@@ -373,6 +405,32 @@ class LoginPage extends HookConsumerWidget {
             ),
             const SizedBox(height: 16),
             buildTelegramLogin(),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'or',
+                    style: context.textTheme.labelMedium?.copyWith(color: context.colorScheme.onSurfaceVariant),
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: isBusy.value ? null : continueLocalGallery,
+              icon: const Icon(Icons.photo_library_outlined, size: 18),
+              label: const Text('Explore local gallery without Telegram'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Browse photos on this phone first. You can connect a Telegram account for cloud backup anytime from the account menu.',
+              textAlign: TextAlign.center,
+              style: context.textTheme.bodySmall?.copyWith(color: context.colorScheme.onSurfaceVariant),
+            ),
           ],
         );
       }

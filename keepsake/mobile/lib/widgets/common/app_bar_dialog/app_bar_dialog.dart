@@ -13,6 +13,7 @@ import 'package:immich_mobile/providers/auth.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/platform.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/readonly_mode.provider.dart';
 import 'package:immich_mobile/providers/locale_provider.dart';
+import 'package:immich_mobile/providers/user.provider.dart';
 import 'package:immich_mobile/providers/websocket.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/widgets/common/app_bar_dialog/app_bar_profile_info.dart';
@@ -65,6 +66,7 @@ class ImmichAppBarDialog extends HookConsumerWidget {
     );
     final isClaiming = useState(false);
     final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
+    final isLocalOnlyMode = ref.watch(currentUserProvider.select((u) => u?.email == 'Not connected to Telegram'));
 
     Widget buildActionTile(
       IconData icon,
@@ -211,6 +213,37 @@ class ImmichAppBarDialog extends HookConsumerWidget {
     }
 
     Widget buildStorageInformation() {
+      if (isLocalOnlyMode) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: scheme.surfaceContainerHigh, shape: BoxShape.circle),
+                child: Icon(Icons.smartphone_outlined, size: 18, color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Local gallery mode', style: context.textTheme.titleSmall?.copyWith(color: scheme.onSurface)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Telegram is not connected yet. Sign out to connect a Telegram account and enable encrypted backup.',
+                      style: context.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
       final indexStatus = backupStatus.data;
       final isUpToDate = indexStatus != null && indexStatus.lastSnapshotAtMs != null && indexStatus.pendingChanges == 0;
 
