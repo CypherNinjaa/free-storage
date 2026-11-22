@@ -7,7 +7,7 @@ import 'package:immich_mobile/constants/locales.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/services/localization.service.dart';
-import 'package:immich_mobile/widgets/common/search_field.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class LanguageSettings extends HookWidget {
   const LanguageSettings({super.key});
@@ -133,34 +133,15 @@ class _LanguageSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 16, bottom: 8, left: 50, right: 50),
-      decoration: BoxDecoration(color: context.colorScheme.surface),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.all(Radius.circular(24)),
-          gradient: LinearGradient(
-            colors: [
-              context.colorScheme.primary.withValues(alpha: 0.075),
-              context.colorScheme.primary.withValues(alpha: 0.09),
-              context.colorScheme.primary.withValues(alpha: 0.075),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SearchField(
-          autofocus: false,
-          contentPadding: const EdgeInsets.all(12),
-          hintText: context.t.language_search_hint,
-          prefixIcon: const Icon(Icons.search_rounded),
-          suffixIcon: controller.text.isNotEmpty
-              ? IconButton(icon: const Icon(Icons.clear_rounded), onPressed: onClear)
-              : null,
-          controller: controller,
-          onChanged: onChanged,
-          focusNode: focusNode,
-          onTapOutside: (_) => focusNode.unfocus(),
-        ),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      color: context.colorScheme.surface,
+      child: AmbrySearchBar(
+        controller: controller,
+        focusNode: focusNode,
+        hintText: context.t.language_search_hint,
+        onChanged: onChanged,
+        onClear: onClear,
+        onTapOutside: (_) => focusNode.unfocus(),
       ),
     );
   }
@@ -171,23 +152,10 @@ class _LanguageNotFound extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded, size: 64, color: context.colorScheme.onSurface.withValues(alpha: 0.4)),
-          const SizedBox(height: 8),
-          Text(
-            context.t.language_no_results_title,
-            style: context.textTheme.titleMedium?.copyWith(color: context.colorScheme.onSurface),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            context.t.language_no_results_subtitle,
-            style: context.textTheme.bodyMedium?.copyWith(color: context.colorScheme.onSurface.withValues(alpha: 0.8)),
-          ),
-        ],
-      ),
+    return AmbryEmptyState(
+      icon: Icons.search_off_rounded,
+      title: context.t.language_no_results_title,
+      subtitle: context.t.language_no_results_subtitle,
     );
   }
 }

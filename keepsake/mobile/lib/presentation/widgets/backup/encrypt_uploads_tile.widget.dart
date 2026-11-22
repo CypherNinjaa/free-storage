@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/providers/infrastructure/platform.provider.dart';
+import 'package:immich_ui/immich_ui.dart';
 import 'package:logging/logging.dart';
 
 /// Turns encryption of new uploads on or off. The setting lives in the vault index on the phone, so the
@@ -64,17 +65,16 @@ class _EncryptUploadsTileState extends ConsumerState<EncryptUploadsTile> {
   Future<bool> _confirmPlainUploads() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Upload without encryption?'),
-        content: const Text(
-          'New photos and videos will be stored in your Telegram channel as ordinary files. You can open them in '
-          'Telegram, but so can anyone who gets into your Telegram account, and Telegram can see them too.\n\n'
-          'Photos already backed up stay as they are. Your library index stays encrypted.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Keep encryption')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Turn off')),
-        ],
+      builder: (context) => AmbryConfirmDialog(
+        title: 'Upload without encryption?',
+        content:
+            'New photos and videos will be stored in your Telegram channel as ordinary files. You can open them in '
+            'Telegram, but so can anyone who gets into your Telegram account, and Telegram can see them too.\n\n'
+            'Photos already backed up stay as they are. Your library index stays encrypted.',
+        confirmLabel: 'Turn off',
+        cancelLabel: 'Keep encryption',
+        destructive: true,
+        onConfirm: () {},
       ),
     );
     return confirmed ?? false;
@@ -84,25 +84,52 @@ class _EncryptUploadsTileState extends ConsumerState<EncryptUploadsTile> {
   Widget build(BuildContext context) {
     final encrypt = _encrypt;
     final enabled = encrypt != null && !_saving;
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(top: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        side: BorderSide(color: context.colorScheme.outlineVariant, width: 1),
+    final isPlain = encrypt == false;
+    final scheme = context.colorScheme;
+    final colors = context.immichColors;
+
+    return AnimatedContainer(
+      duration: AmbryMotion.durationOf(context, AmbryMotion.dModerate),
+      curve: AmbryMotion.easeEffects,
+      margin: const EdgeInsets.only(top: 10),
+      decoration: BoxDecoration(
+        color: isPlain ? colors.warningContainer : scheme.surfaceContainerLow,
+        borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+        border: Border.all(
+          color: isPlain ? colors.warning.withValues(alpha: 0.4) : scheme.outlineVariant.withValues(alpha: 0.7),
+        ),
       ),
       child: SwitchListTile.adaptive(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        secondary: Icon(encrypt == false ? Icons.lock_open_rounded : Icons.lock_rounded, color: context.primaryColor),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        secondary: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isPlain ? colors.warning.withValues(alpha: 0.16) : scheme.surfaceContainerHigh,
+          ),
+          child: Icon(
+            isPlain ? Icons.lock_open_rounded : Icons.lock_rounded,
+            size: 20,
+            color: isPlain ? colors.onWarningContainer : scheme.primary,
+          ),
+        ),
         title: Text(
           'Encrypt before upload',
-          style: context.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          style: context.textTheme.titleMedium?.copyWith(
+            color: isPlain ? colors.onWarningContainer : scheme.onSurface,
+          ),
         ),
-        subtitle: Text(
-          encrypt == false
-              ? 'Off: new uploads are ordinary files you can open in Telegram.'
-              : 'On: only this app, with your passphrase or recovery words, can open your uploads.',
-          style: context.textTheme.bodySmall,
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            isPlain
+                ? 'Off: new uploads are ordinary files you can open in Telegram.'
+                : 'On: only this app, with your passphrase or recovery words, can open your uploads.',
+            style: context.textTheme.bodySmall?.copyWith(
+              color: isPlain ? colors.onWarningContainer.withValues(alpha: 0.85) : scheme.onSurfaceVariant,
+            ),
+          ),
         ),
         value: encrypt ?? true,
         onChanged: enabled ? _change : null,

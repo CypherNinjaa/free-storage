@@ -2,19 +2,18 @@ import 'dart:async';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/domain/models/timeline.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/extensions/datetime_extensions.dart';
-import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/providers/haptic_feedback.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/readonly_mode.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
 import 'package:immich_mobile/providers/timeline/multiselect.provider.dart';
+import 'package:immich_ui/immich_ui.dart';
 
-class TimelineHeader extends HookWidget {
+class TimelineHeader extends ConsumerWidget {
   final Bucket bucket;
   final HeaderType header;
   final double height;
@@ -41,7 +40,7 @@ class TimelineHeader extends HookWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (bucket is! TimeBucket || header == HeaderType.none) {
       return const SizedBox.shrink();
     }
@@ -49,38 +48,64 @@ class TimelineHeader extends HookWidget {
     final date = (bucket as TimeBucket).date;
     final isMonthHeader = header == HeaderType.month || header == HeaderType.monthAndDay;
     final isDayHeader = header == HeaderType.day || header == HeaderType.monthAndDay;
+    final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
 
-    return Padding(
-      padding: EdgeInsets.only(top: isMonthHeader ? 8.0 : 0.0, left: 12.0, right: 12.0),
-      child: SizedBox(
-        height: height,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            if (isMonthHeader)
-              Row(
-                children: [
-                  Text(
-                    toBeginningOfSentenceCase(_formatMonth(date)),
-                    style: context.textTheme.labelLarge?.copyWith(fontSize: 24),
+    void onToggleBucket() {
+      if (isReadonlyModeEnabled) {
+        return;
+      }
+      unawaited(ref.read(multiSelectProvider.notifier).toggleBucketSelection(assetOffset, bucket.assetCount));
+      ref.read(hapticFeedbackProvider.notifier).heavyImpact();
+    }
+
+    return SizedBox(
+      height: height,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: isReadonlyModeEnabled ? null : onToggleBucket,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: isMonthHeader && isDayHeader ? MainAxisAlignment.end : MainAxisAlignment.center,
+            children: [
+              if (isMonthHeader)
+                Padding(
+                  padding: EdgeInsets.only(bottom: isDayHeader ? 4.0 : 0.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          toBeginningOfSentenceCase(_formatMonth(date)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.textTheme.headlineSmall?.copyWith(color: context.colorScheme.onSurface),
+                        ),
+                      ),
+                      if (header != HeaderType.monthAndDay)
+                        _BulkSelectIconButton(bucket: bucket, assetOffset: assetOffset),
+                    ],
                   ),
-                  const Spacer(),
-                  if (header != HeaderType.monthAndDay) _BulkSelectIconButton(bucket: bucket, assetOffset: assetOffset),
-                ],
-              ),
-            if (isDayHeader)
-              Row(
-                children: [
-                  Text(
-                    toBeginningOfSentenceCase(_formatDay(date)),
-                    style: context.textTheme.labelLarge?.copyWith(fontSize: 15),
+                ),
+              if (isDayHeader)
+                Padding(
+                  padding: EdgeInsets.only(bottom: isMonthHeader ? 6.0 : 0.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          toBeginningOfSentenceCase(_formatDay(date)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.textTheme.titleSmall?.copyWith(color: context.colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                      _BulkSelectIconButton(bucket: bucket, assetOffset: assetOffset),
+                    ],
                   ),
-                  const Spacer(),
-                  _BulkSelectIconButton(bucket: bucket, assetOffset: assetOffset),
-                ],
-              ),
-          ],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -95,30 +120,55 @@ class _BulkSelectIconButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    List<BaseAsset> bucketAssets;
-    try {
-      bucketAssets = ref.watch(timelineServiceProvider).getAssets(assetOffset, bucket.assetCount);
-    } catch (e) {
-      bucketAssets = <BaseAsset>[];
+    final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
+    final isMultiSelectEnabled = ref.watch(multiSelectProvider.select((s) => s.isEnabled));
+    if (isReadonlyModeEnabled) {
+      return const SizedBox.shrink();
     }
 
-    final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
-    final isAllSelected = ref.watch(
-      multiSelectProvider.select(
-        (state) => bucketAssets.isNotEmpty && bucketAssets.every(state.selectedAssets.contains),
-      ),
-    );
+    List<BaseAsset> bucketAssets;
+    if (isMultiSelectEnabled) {
+      try {
+        bucketAssets = ref.watch(timelineServiceProvider).getAssets(assetOffset, bucket.assetCount);
+      } catch (e) {
+        bucketAssets = <BaseAsset>[];
+      }
+    } else {
+      bucketAssets = const <BaseAsset>[];
+    }
 
-    return isReadonlyModeEnabled
-        ? const SizedBox.shrink()
-        : IconButton(
+    final isAllSelected =
+        isMultiSelectEnabled &&
+        ref.watch(
+          multiSelectProvider.select(
+            (state) => bucketAssets.isNotEmpty && bucketAssets.every(state.selectedAssets.contains),
+          ),
+        );
+
+    final duration = AmbryMotion.durationOf(context, AmbryMotion.dStandard);
+
+    return IgnorePointer(
+      ignoring: !isMultiSelectEnabled,
+      child: AnimatedOpacity(
+        duration: duration,
+        curve: AmbryMotion.easeEffects,
+        opacity: isMultiSelectEnabled ? 1.0 : 0.0,
+        child: AnimatedScale(
+          duration: duration,
+          curve: AmbryMotion.easeSpatial,
+          scale: isMultiSelectEnabled ? 1.0 : 0.75,
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
             onPressed: () {
               unawaited(ref.read(multiSelectProvider.notifier).toggleBucketSelection(assetOffset, bucket.assetCount));
               ref.read(hapticFeedbackProvider.notifier).heavyImpact();
             },
             icon: isAllSelected
-                ? Icon(Icons.check_circle_rounded, size: 26, color: context.primaryColor)
-                : Icon(Icons.check_circle_outline_rounded, size: 26, color: context.colorScheme.onSurfaceSecondary),
-          );
+                ? Icon(Icons.check_circle_rounded, size: 24, color: context.colorScheme.primary)
+                : Icon(Icons.radio_button_unchecked_rounded, size: 24, color: context.colorScheme.onSurfaceVariant),
+          ),
+        ),
+      ),
+    );
   }
 }

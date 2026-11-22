@@ -20,7 +20,6 @@ import 'package:immich_mobile/providers/permission.provider.dart';
 import 'package:immich_mobile/providers/sync_status.provider.dart';
 import 'package:immich_mobile/providers/user.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
-import 'package:immich_mobile/widgets/backup/backup_info_card.dart';
 import 'package:immich_ui/immich_ui.dart';
 import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -112,8 +111,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
           onPressed: () {
             unawaited(context.maybePop(true));
           },
-          splashRadius: 24,
-          icon: const Icon(Icons.arrow_back_ios_rounded),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
         actions: [
           IconButton(
@@ -125,54 +123,38 @@ class _BackupPageState extends ConsumerState<BackupPage> {
           ),
         ],
       ),
-      body: Stack(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16.0, right: 16, bottom: 32),
-            child: ListView(
-              children: [
-                const SizedBox(height: 8),
-                const _BackupAlbumSelectionCard(),
-                if (selectedAlbum.isNotEmpty) ...[
-                  const _TotalCard(),
-                  const _BackupCard(),
-                  const _RemainderCard(),
-                  const Divider(),
-                  BackupToggleButton(
-                    onStart: () async => await startBackup(),
-                    onStop: () {
-                      syncSuccess = null;
-                      backupNotifier.stopForegroundBackup(reason: "backup button toggled off");
-                    },
-                  ),
-                  const EncryptUploadsTile(),
-                  switch (error) {
-                    BackupError.none => const SizedBox.shrink(),
-                    BackupError.syncFailed => Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          Icon(Icons.warning_rounded, color: context.colorScheme.error, fill: 1),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              context.t.backup_error_sync_failed,
-                              style: context.textTheme.bodyMedium?.copyWith(color: context.colorScheme.error),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  },
-                  const _BackupFooter(),
-                ],
-              ],
+          if (selectedAlbum.isNotEmpty) ...[
+            const _VaultSummaryCard(),
+            const SizedBox(height: 12),
+            BackupToggleButton(
+              onStart: () async => await startBackup(),
+              onStop: () {
+                syncSuccess = null;
+                backupNotifier.stopForegroundBackup(reason: "backup button toggled off");
+              },
             ),
-          ),
+            const EncryptUploadsTile(),
+            const SizedBox(height: 12),
+          ],
+          const _BackupAlbumSelectionCard(),
+          if (selectedAlbum.isEmpty) ...[
+            const EncryptUploadsTile(),
+          ],
+          if (selectedAlbum.isNotEmpty) ...[
+            switch (error) {
+              BackupError.none => const SizedBox.shrink(),
+              BackupError.syncFailed => AmbryBanner(
+                margin: const EdgeInsets.only(top: 12),
+                variant: AmbryBannerVariant.error,
+                title: 'Sync interrupted',
+                body: context.t.backup_error_sync_failed,
+              ),
+            },
+            const _BackupFooter(),
+          ],
         ],
       ),
     );
@@ -224,7 +206,7 @@ class _BackupFooterState extends ConsumerState<_BackupFooter> with WidgetsBindin
             variant: .ghost,
             expanded: false,
             onPressed: () {
-              ContextHelper(context).pop();
+              ContextHelper(ctx).pop();
               unawaited(openAppSettings());
             },
           ),
@@ -293,56 +275,31 @@ class _BackupFooterState extends ConsumerState<_BackupFooter> with WidgetsBindin
             const Divider(indent: 32, endIndent: 32),
           // Phones such as Realme/Oppo/OnePlus (ColorOS), Xiaomi and Vivo freeze apps in the background a few
           // seconds after they close, so background backup never gets to run until the user allows it.
-          if (batteryOptimizationStatus != PermissionStatus.granted)
-            Card(
-              elevation: 0,
+          if (batteryOptimizationStatus != null && batteryOptimizationStatus != PermissionStatus.granted)
+            AmbryBanner(
               margin: const EdgeInsets.only(top: 12, bottom: 4),
-              color: context.colorScheme.errorContainer.withValues(alpha: 0.35),
-              shape: RoundedRectangleBorder(
-                borderRadius: const BorderRadius.all(Radius.circular(20)),
-                side: BorderSide(color: context.colorScheme.error.withValues(alpha: 0.4)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.battery_alert_rounded, color: context.colorScheme.error),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Background backup is paused by your phone',
-                            style: context.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Your phone stops Ambry soon after you close it, so new photos are backed up only when you '
-                      'open the app. To back up in the background, open app settings, then Battery, and allow '
-                      'background activity (or choose "Unrestricted").',
-                      style: context.textTheme.bodySmall,
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => unawaited(showBatteryOptimizationInfo()),
-                          child: const Text('Learn more'),
-                        ),
-                        TextButton(onPressed: () => unawaited(openAppSettings()), child: const Text('Open app settings')),
-                      ],
-                    ),
-                  ],
+              variant: AmbryBannerVariant.error,
+              icon: Icons.battery_alert_rounded,
+              title: 'Background backup is paused by your phone',
+              body:
+                  'Your phone stops Ambry soon after you close it, so new photos are backed up only when you '
+                  'open the app. To back up in the background, open app settings, then Battery, and allow '
+                  'background activity (or choose "Unrestricted").',
+              actions: [
+                TextButton(
+                  onPressed: () => unawaited(showBatteryOptimizationInfo()),
+                  child: const Text('Learn more'),
                 ),
-              ),
+                FilledButton.tonal(
+                  onPressed: () => unawaited(openAppSettings()),
+                  child: const Text('Open app settings'),
+                ),
+              ],
             ),
         ],
+        const SizedBox(height: 8),
         TextButton.icon(
-          icon: const Icon(Icons.info_outline_rounded),
+          icon: const Icon(Icons.info_outline_rounded, size: 18),
           onPressed: () => context.pushRoute(const UploadDetailRoute()),
           label: Text(context.t.view_details),
         ),
@@ -357,6 +314,7 @@ class _BackupAlbumSelectionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final backupAlbums = ref.watch(backupAlbumProvider);
+    final scheme = context.colorScheme;
 
     Widget buildSelectedAlbumName() {
       String text = context.t.backup_controller_page_backup_selected;
@@ -372,18 +330,18 @@ class _BackupAlbumSelectionCard extends ConsumerWidget {
         }
 
         return Padding(
-          padding: const EdgeInsets.only(top: 8.0),
+          padding: const EdgeInsets.only(top: 6.0),
           child: Text(
             text.trim().substring(0, text.length - 2),
-            style: context.textTheme.labelLarge?.copyWith(color: context.primaryColor),
+            style: context.textTheme.labelMedium?.copyWith(color: scheme.onSurface),
           ),
         );
       } else {
         return Padding(
-          padding: const EdgeInsets.only(top: 8.0),
+          padding: const EdgeInsets.only(top: 6.0),
           child: Text(
             context.t.backup_controller_page_none_selected,
-            style: context.textTheme.labelLarge?.copyWith(color: context.primaryColor),
+            style: context.textTheme.labelMedium?.copyWith(color: scheme.primary),
           ),
         );
       }
@@ -399,175 +357,245 @@ class _BackupAlbumSelectionCard extends ConsumerWidget {
         }
 
         return Padding(
-          padding: const EdgeInsets.only(top: 8.0),
+          padding: const EdgeInsets.only(top: 4.0),
           child: Text(
             text.trim().substring(0, text.length - 2),
-            style: context.textTheme.labelLarge?.copyWith(color: Colors.red[300]),
+            style: context.textTheme.labelMedium?.copyWith(color: scheme.error),
           ),
         );
       } else {
-        return const SizedBox();
+        return const SizedBox.shrink();
       }
     }
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        side: BorderSide(color: context.colorScheme.outlineVariant, width: 1),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
       ),
-      elevation: 0,
-      borderOnForeground: false,
-      child: ListTile(
-        minVerticalPadding: 18,
-        title: Text(context.t.backup_controller_page_albums, style: context.textTheme.titleMedium),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                context.t.backup_controller_page_to_backup,
-                style: context.textTheme.bodyMedium?.copyWith(color: context.colorScheme.onSurfaceSecondary),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: scheme.surfaceContainerHigh, shape: BoxShape.circle),
+              child: Icon(Icons.folder_copy_outlined, size: 20, color: scheme.primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.t.backup_controller_page_albums,
+                    style: context.textTheme.titleMedium?.copyWith(color: scheme.onSurface),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    context.t.backup_controller_page_to_backup,
+                    style: context.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  buildSelectedAlbumName(),
+                  buildExcludedAlbumName(),
+                ],
               ),
-              buildSelectedAlbumName(),
-              buildExcludedAlbumName(),
-            ],
-          ),
-        ),
-        trailing: ElevatedButton(
-          onPressed: () async {
-            await context.pushRoute(const BackupAlbumSelectionRoute());
-            if (!context.mounted) {
-              return;
-            }
+            ),
+            const SizedBox(width: 12),
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              onPressed: () async {
+                await context.pushRoute(const BackupAlbumSelectionRoute());
+                if (!context.mounted) {
+                  return;
+                }
 
-            final currentUser = ref.read(currentUserProvider);
-            if (currentUser == null) {
-              return;
-            }
-            unawaited(ref.read(backupProvider.notifier).getBackupStatus(currentUser.id));
-          },
-          child: Text(context.t.select, style: const TextStyle(fontWeight: FontWeight.bold)),
+                final currentUser = ref.read(currentUserProvider);
+                if (currentUser == null) {
+                  return;
+                }
+                unawaited(ref.read(backupProvider.notifier).getBackupStatus(currentUser.id));
+              },
+              child: Text(context.t.select),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _TotalCard extends ConsumerWidget {
-  const _TotalCard();
+class _VaultSummaryCard extends ConsumerWidget {
+  const _VaultSummaryCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalCount = ref.watch(backupProvider.select((p) => p.totalCount));
-
-    return BackupInfoCard(
-      title: context.t.total,
-      subtitle: context.t.backup_controller_page_total_sub,
-      info: totalCount.toString(),
-    );
-  }
-}
-
-class _BackupCard extends ConsumerWidget {
-  const _BackupCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     final backupCount = ref.watch(backupProvider.select((p) => p.backupCount));
-    final syncStatus = ref.watch(syncStatusProvider);
-
-    return BackupInfoCard(
-      title: context.t.backup_controller_page_backup,
-      subtitle: context.t.backup_controller_page_backup_sub,
-      info: backupCount.toString(),
-      isLoading: syncStatus.isRemoteSyncing,
-    );
-  }
-}
-
-class _RemainderCard extends ConsumerWidget {
-  const _RemainderCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
     final remainderCount = ref.watch(backupProvider.select((p) => p.remainderCount));
-    final syncStatus = ref.watch(syncStatusProvider);
+    final isRemoteSyncing = ref.watch(syncStatusProvider.select((s) => s.isRemoteSyncing));
+    final scheme = context.colorScheme;
+    final colors = context.immichColors;
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        side: BorderSide(color: context.colorScheme.outlineVariant, width: 1),
+    final progress = totalCount > 0 ? (backupCount / totalCount).clamp(0.0, 1.0) : 0.0;
+    final isAllBackedUp = remainderCount == 0 && backupCount > 0 && !isRemoteSyncing;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.xl)),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
       ),
-      elevation: 0,
-      borderOnForeground: false,
+      clipBehavior: Clip.antiAlias,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            minVerticalPadding: 18,
-            isThreeLine: true,
-            title: Text(context.t.backup_controller_page_remainder, style: context.textTheme.titleMedium),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4.0, right: 18.0),
-              child: Text(
-                context.t.backup_controller_page_remainder_sub,
-                style: context.textTheme.bodyMedium?.copyWith(color: context.colorScheme.onSurfaceSecondary),
-              ),
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Stack(
+                Row(
                   children: [
                     Text(
-                      remainderCount.toString(),
-                      style: context.textTheme.titleLarge?.copyWith(
-                        color: context.colorScheme.onSurface.withAlpha(syncStatus.isRemoteSyncing ? 50 : 255),
-                        fontFeatures: [const FontFeature.tabularFigures()],
-                      ),
+                      'Vault backup',
+                      style: context.textTheme.titleMedium?.copyWith(color: scheme.onSurface),
                     ),
-                    if (syncStatus.isRemoteSyncing)
-                      Positioned.fill(
-                        child: Align(
-                          alignment: Alignment.center,
-                          child: SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: context.colorScheme.onSurface.withAlpha(150),
-                            ),
+                    const Spacer(),
+                    if (isRemoteSyncing)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
                           ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Syncing…',
+                            style: context.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      )
+                    else if (isAllBackedUp)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: colors.successContainer,
+                          borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle_rounded, size: 14, color: colors.onSuccessContainer),
+                            const SizedBox(width: 5),
+                            Text(
+                              'All backed up',
+                              style: context.textTheme.labelMedium?.copyWith(
+                                color: colors.onSuccessContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Text(
+                        '${(progress * 100).round()}%',
+                        style: context.textTheme.titleSmall?.copyWith(
+                          color: scheme.onSurface,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                   ],
                 ),
-                Text(
-                  context.t.backup_info_card_assets,
-                  style: context.textTheme.labelLarge?.copyWith(
-                    color: context.colorScheme.onSurface.withAlpha(syncStatus.isRemoteSyncing ? 50 : 255),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+                  child: LinearProgressIndicator(
+                    value: isRemoteSyncing ? null : progress,
+                    minHeight: 5,
+                    backgroundColor: scheme.surfaceContainerHighest,
+                    color: isAllBackedUp ? colors.success : scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      _MetricColumn(label: context.t.total, value: totalCount),
+                      VerticalDivider(width: 1, thickness: 1, color: scheme.outlineVariant),
+                      _MetricColumn(label: context.t.backup_controller_page_backup, value: backupCount),
+                      VerticalDivider(width: 1, thickness: 1, color: scheme.outlineVariant),
+                      _MetricColumn(
+                        label: context.t.backup_controller_page_remainder,
+                        value: remainderCount,
+                        highlight: remainderCount > 0,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 0),
           const _PreparingStatus(),
-          const Divider(height: 0),
-
-          ListTile(
-            enableFeedback: true,
-            visualDensity: VisualDensity.compact,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20)),
-            ),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+          InkWell(
             onTap: () => context.pushRoute(const BackupAssetDetailRoute()),
-            title: Text(
-              context.t.view_details,
-              style: context.textTheme.labelLarge?.copyWith(color: context.colorScheme.onSurface.withAlpha(200)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Row(
+                children: [
+                  Text(
+                    context.t.view_details,
+                    style: context.textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.chevron_right_rounded, size: 20, color: scheme.onSurfaceVariant),
+                ],
+              ),
             ),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16, color: context.colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricColumn extends StatelessWidget {
+  final String label;
+  final int value;
+  final bool highlight;
+
+  const _MetricColumn({required this.label, required this.value, this.highlight = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colorScheme;
+
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value.toString(),
+            style: context.textTheme.headlineSmall?.copyWith(
+              color: highlight ? scheme.primary : scheme.onSurface,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),

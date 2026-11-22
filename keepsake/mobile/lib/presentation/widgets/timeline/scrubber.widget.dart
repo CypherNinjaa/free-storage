@@ -8,7 +8,6 @@ import 'package:immich_mobile/constants/constants.dart';
 import 'package:immich_mobile/domain/models/timeline.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/extensions/datetime_extensions.dart';
-import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/presentation/widgets/timeline/constants.dart';
 import 'package:immich_mobile/presentation/widgets/timeline/segment.model.dart';
 import 'package:immich_mobile/presentation/widgets/timeline/timeline.state.dart';
@@ -87,7 +86,7 @@ List<_Segment> _buildSegments({required List<Segment> layoutSegments, required d
 
 class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixin {
   String? _lastLabel;
-  double _thumbTopOffset = 0.0;
+  final ValueNotifier<double> _thumbTopOffsetNotifier = ValueNotifier<double>(0.0);
   bool _isDragging = false;
   List<_Segment> _segments = [];
   int _monthCount = 0;
@@ -107,8 +106,11 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
     if (_scrollController.hasClients != true) {
       return 0.0;
     }
-
-    return _scrollController.offset * _scrubberHeight / _scrollController.position.maxScrollExtent;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    if (maxExtent <= 0) {
+      return 0.0;
+    }
+    return (_scrollController.offset * _scrubberHeight / maxExtent).clamp(0.0, _scrubberHeight.clamp(0.0, double.infinity));
   }
 
   @override
@@ -142,6 +144,7 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
 
   @override
   void dispose() {
+    _thumbTopOffsetNotifier.dispose();
     _thumbAnimationController.dispose();
     _labelAnimationController.dispose();
     _fadeOutTimer?.cancel();
@@ -179,7 +182,7 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
         if (!_thumbAnimationController.status.isForwardOrCompleted) {
           unawaited(_thumbAnimationController.forward());
         }
-        setState(() => _thumbTopOffset = _currentOffset);
+        _thumbTopOffsetNotifier.value = _currentOffset;
       case ScrollEndNotification():
         ref.read(timelineStateProvider.notifier).setScrolling(false);
         _resetThumbTimer();
@@ -222,31 +225,13 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
     }
 
     if (_monthCount < kMinMonthsToEnableScrubberSnap || !widget.snapToMonth) {
-      // If there are less than kMinMonthsToEnableScrubberSnap months, we don't need to snap to segments
-      setState(() {
-        _thumbTopOffset = dragPosition;
-        _scrollController.jumpTo((dragPosition / _scrubberHeight) * _scrollController.position.maxScrollExtent);
-      });
+      _thumbTopOffsetNotifier.value = dragPosition;
+      _scrollController.jumpTo((dragPosition / _scrubberHeight) * _scrollController.position.maxScrollExtent);
     } else if (nearestMonthSegment != null) {
       _snapToSegment(nearestMonthSegment);
     }
   }
 
-  /// Calculate the drag position relative to the scrubber area
-  ///
-  /// This method converts the global drag coordinates from the gesture detector
-  /// into a position relative to the scrubber's active area (excluding padding).
-  ///
-  /// The scrubber has padding at the top and bottom, so we need to:
-  /// 1. Calculate the actual draggable area (timelineHeight - topPadding - bottomPadding)
-  /// 2. Convert the global Y position to a position within this draggable area
-  /// 3. Clamp the result to ensure it stays within bounds (0 to dragAreaHeight)
-  ///
-  /// Example:
-  /// - If timelineHeight = 800, topPadding = 50, bottomPadding = 50
-  /// - Then dragAreaHeight = 700 (the actual scrubber area)
-  /// - If user drags to global Y position that's 100 pixels from the top
-  /// - The relative position would be 100 - 50 = 50 (50 pixels into the scrubber area)
   double _calculateDragPosition(DragUpdateDetails details) {
     if (widget.hasAppBar) {
       final dragAreaTop = widget.topPadding;
@@ -255,24 +240,20 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
 
       final relativePosition = details.globalPosition.dy - dragAreaTop;
 
-      // Make sure the position stays within the scrubber's bounds
       return relativePosition.clamp(0.0, dragAreaHeight);
     }
 
-    // Get the local position relative to the gesture detector
     final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox != null) {
       final localPosition = renderBox.globalToLocal(details.globalPosition);
       return localPosition.dy.clamp(0.0, _scrubberHeight);
     }
 
-    // Fallback to current logic if render box is not available
     final dragAreaTop = widget.topPadding;
     final relativePosition = details.globalPosition.dy - dragAreaTop;
     return relativePosition.clamp(0.0, _scrubberHeight);
   }
 
-  /// Find the segment closest to the given position
   _Segment? _findNearestMonthSegment(double position) {
     _Segment? nearestSegment;
     double minDistance = double.infinity;
@@ -288,17 +269,14 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
     return nearestSegment;
   }
 
-  /// Snap the scrubber thumb and scroll view to the given segment
   void _snapToSegment(_Segment segment) {
-    setState(() {
-      _thumbTopOffset = segment.startOffset;
+    _thumbTopOffsetNotifier.value = segment.startOffset;
 
-      final layoutSegmentIndex = _findLayoutSegmentIndex(segment);
+    final layoutSegmentIndex = _findLayoutSegmentIndex(segment);
 
-      if (layoutSegmentIndex >= 0) {
-        _scrollToLayoutSegment(layoutSegmentIndex);
-      }
-    });
+    if (layoutSegmentIndex >= 0) {
+      _scrollToLayoutSegment(layoutSegmentIndex);
+    }
   }
 
   int _findLayoutSegmentIndex(_Segment segment) {
@@ -330,21 +308,6 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
 
   @override
   Widget build(BuildContext ctx) {
-    Text? label;
-    if (_scrollController.hasClients == true) {
-      // Cache to avoid multiple calls to [_currentOffset]
-      final scrollOffset = _currentOffset;
-      final labelText =
-          _segments.lastWhereOrNull((segment) => segment.startOffset <= scrollOffset)?.scrollLabel ??
-          _segments.firstOrNull?.scrollLabel;
-      label = labelText != null
-          ? Text(
-              labelText,
-              style: ctx.textTheme.bodyLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-            )
-          : null;
-    }
-
     return NotificationListener<ScrollNotification>(
       onNotification: _onScrollNotification,
       child: Stack(
@@ -359,19 +322,39 @@ class ScrubberState extends ConsumerState<Scrubber> with TickerProviderStateMixi
               isDragging: _isDragging,
             ),
           ),
-          if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0)
-            PositionedDirectional(
-              top: _thumbTopOffset + widget.topPadding,
-              end: 0,
-              child: RepaintBoundary(
-                child: GestureDetector(
-                  onVerticalDragStart: _onDragStart,
-                  onVerticalDragUpdate: _onDragUpdate,
-                  onVerticalDragEnd: _onDragEnd,
-                  child: _Scrubber(thumbAnimation: _thumbAnimation, labelAnimation: _labelAnimation, label: label),
+          ValueListenableBuilder<double>(
+            valueListenable: _thumbTopOffsetNotifier,
+            builder: (context, thumbTopOffset, _) {
+              if (!_scrollController.hasClients || _scrollController.position.maxScrollExtent <= 0) {
+                return const SizedBox.shrink();
+              }
+              final labelText =
+                  _segments.lastWhereOrNull((segment) => segment.startOffset <= thumbTopOffset)?.scrollLabel ??
+                  _segments.firstOrNull?.scrollLabel;
+              final label = labelText != null
+                  ? Text(
+                      labelText,
+                      style: ctx.textTheme.labelLarge?.copyWith(
+                        color: ctx.colorScheme.onInverseSurface,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    )
+                  : null;
+
+              return PositionedDirectional(
+                top: thumbTopOffset + widget.topPadding,
+                end: 0,
+                child: RepaintBoundary(
+                  child: GestureDetector(
+                    onVerticalDragStart: _onDragStart,
+                    onVerticalDragUpdate: _onDragUpdate,
+                    onVerticalDragEnd: _onDragEnd,
+                    child: _Scrubber(thumbAnimation: _thumbAnimation, labelAnimation: _labelAnimation, label: label),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -417,15 +400,20 @@ class _SegmentWidget extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(right: 36.0),
         child: Material(
-          color: context.colorScheme.surface,
-          borderRadius: const BorderRadius.all(Radius.circular(16.0)),
+          color: context.colorScheme.surfaceContainerHighest,
+          shape: StadiumBorder(side: BorderSide(color: context.colorScheme.outlineVariant)),
           child: Container(
             constraints: const BoxConstraints(maxHeight: 28),
             padding: const EdgeInsets.symmetric(horizontal: 10.0),
             alignment: Alignment.center,
             child: Text(
               _segment.date.year.toString(),
-              style: context.textTheme.labelMedium?.copyWith(fontFamily: "GoogleSansCode", fontWeight: FontWeight.w600),
+              style: context.textTheme.labelMedium?.copyWith(
+                fontFamily: "GoogleSansCode",
+                fontWeight: FontWeight.w600,
+                color: context.colorScheme.onSurface,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ),
@@ -449,12 +437,12 @@ class _ScrollLabel extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(right: 12.0),
           child: Material(
-            elevation: 4.0,
+            elevation: 2.0,
             color: backgroundColor,
-            borderRadius: const BorderRadius.all(Radius.circular(16.0)),
+            shape: const StadiumBorder(),
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 28),
-              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+              constraints: const BoxConstraints(minHeight: 30, maxHeight: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
               alignment: Alignment.center,
               child: label,
             ),
@@ -474,9 +462,7 @@ class _Scrubber extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = context.isDarkTheme
-        ? context.colorScheme.primary.darken(amount: .5)
-        : context.colorScheme.primary;
+    final scheme = context.colorScheme;
 
     return _SlideFadeTransition(
       animation: thumbAnimation,
@@ -484,8 +470,12 @@ class _Scrubber extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (label != null) _ScrollLabel(label: label!, backgroundColor: backgroundColor, animation: labelAnimation),
-          _CircularThumb(backgroundColor),
+          if (label != null) _ScrollLabel(label: label!, backgroundColor: scheme.inverseSurface, animation: labelAnimation),
+          _CircularThumb(
+            backgroundColor: scheme.surfaceContainerHighest,
+            borderColor: scheme.outlineVariant,
+            iconColor: scheme.onSurface,
+          ),
         ],
       ),
     );
@@ -494,24 +484,33 @@ class _Scrubber extends StatelessWidget {
 
 class _CircularThumb extends StatelessWidget {
   final Color backgroundColor;
+  final Color borderColor;
+  final Color iconColor;
 
-  const _CircularThumb(this.backgroundColor);
+  const _CircularThumb({
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.iconColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      foregroundPainter: const _ArrowPainter(Colors.white),
+      foregroundPainter: _ArrowPainter(iconColor),
       child: Material(
-        elevation: 4.0,
+        elevation: 2.0,
         color: backgroundColor,
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(kScrubberThumbHeight),
-          bottomLeft: Radius.circular(kScrubberThumbHeight),
-          topRight: Radius.circular(4.0),
-          bottomRight: Radius.circular(4.0),
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: borderColor),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(kScrubberThumbHeight),
+            bottomLeft: Radius.circular(kScrubberThumbHeight),
+            topRight: Radius.circular(4.0),
+            bottomRight: Radius.circular(4.0),
+          ),
         ),
         child: Container(
-          constraints: BoxConstraints.tight(const Size(kScrubberThumbHeight * 0.6, kScrubberThumbHeight)),
+          constraints: BoxConstraints.tight(const Size(kScrubberThumbHeight * 0.68, kScrubberThumbHeight)),
         ),
       ),
     );
@@ -524,18 +523,18 @@ class _ArrowPainter extends CustomPainter {
   const _ArrowPainter(this.color);
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _ArrowPainter oldDelegate) => oldDelegate.color != color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
-    const width = 12.0;
-    const height = 8.0;
-    final baseX = size.width / 2;
-    final baseY = size.height / 2;
+    const width = 10.0;
+    const height = 6.0;
+    final left = (size.width - width) / 2 + 1.0;
+    final centerY = size.height / 2;
 
-    canvas.drawPath(_trianglePath(Offset(baseX, baseY - 2.0), width, height, true), paint);
-    canvas.drawPath(_trianglePath(Offset(baseX, baseY + 2.0), width, height, false), paint);
+    canvas.drawPath(_trianglePath(Offset(left, centerY - 2.5), width, height, true), paint);
+    canvas.drawPath(_trianglePath(Offset(left, centerY + 2.5), width, height, false), paint);
   }
 
   static Path _trianglePath(Offset o, double width, double height, bool isUp) {

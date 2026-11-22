@@ -4,164 +4,102 @@ import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/providers/backup/backup.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/settings.provider.dart';
+import 'package:immich_ui/immich_ui.dart';
 
-class BackupToggleButton extends ConsumerStatefulWidget {
+class BackupToggleButton extends ConsumerWidget {
   final VoidCallback onStart;
   final VoidCallback onStop;
 
   const BackupToggleButton({super.key, required this.onStart, required this.onStop});
 
-  @override
-  ConsumerState<BackupToggleButton> createState() => BackupToggleButtonState();
-}
-
-class BackupToggleButtonState extends ConsumerState<BackupToggleButton> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _gradientAnimation;
-  bool _isEnabled = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(duration: const Duration(seconds: 8), vsync: this);
-
-    _gradientAnimation = Tween<double>(
-      begin: 0,
-      end: 1,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
-
-    _isEnabled = ref.read(appConfigProvider).backup.enabled;
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _onToggle(bool value) async {
+  Future<void> _onToggle(WidgetRef ref, bool value) async {
     await ref.read(settingsProvider).write(.backupEnabled, value);
 
-    setState(() {
-      _isEnabled = value;
-    });
-
     if (value) {
-      widget.onStart.call();
+      onStart.call();
     } else {
-      widget.onStop.call();
+      onStop.call();
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isEnabled = ref.watch(appConfigProvider.select((c) => c.backup.enabled));
     final uploadTasks = ref.watch(backupProvider.select((state) => state.uploadItems));
-
     final isSyncing = ref.watch(backupProvider.select((state) => state.isSyncing));
-
     final iCloudProgress = ref.watch(backupProvider.select((state) => state.iCloudDownloadProgress));
-
     final errorCount = ref.watch(backupProvider.select((state) => state.errorCount));
 
     final isProcessing = uploadTasks.isNotEmpty || isSyncing || iCloudProgress.isNotEmpty;
+    final scheme = context.colorScheme;
 
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, child) {
-        final gradientColors = [
-          Color.lerp(
-            context.primaryColor.withValues(alpha: 0.5),
-            context.primaryColor.withValues(alpha: 0.3),
-            _gradientAnimation.value,
-          )!,
-          Color.lerp(
-            context.primaryColor.withValues(alpha: 0.2),
-            context.primaryColor.withValues(alpha: 0.4),
-            _gradientAnimation.value,
-          )!,
-          Color.lerp(
-            context.primaryColor.withValues(alpha: 0.3),
-            context.primaryColor.withValues(alpha: 0.5),
-            _gradientAnimation.value,
-          )!,
-        ];
-
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: const BorderRadius.all(Radius.circular(20)),
-            gradient: LinearGradient(
-              colors: gradientColors,
-              stops: const [0.0, 0.5, 1.0],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return AnimatedContainer(
+      duration: AmbryMotion.durationOf(context, AmbryMotion.dModerate),
+      curve: AmbryMotion.easeEffects,
+      decoration: BoxDecoration(
+        color: isEnabled ? scheme.primaryContainer.withValues(alpha: 0.45) : scheme.surfaceContainerLow,
+        borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+        border: Border.all(
+          color: isEnabled ? scheme.primary.withValues(alpha: 0.35) : scheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isEnabled ? scheme.primaryContainer : scheme.surfaceContainerHigh,
+              ),
+              child: Center(
+                child: isProcessing
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: scheme.primary),
+                      )
+                    : Icon(
+                        isEnabled ? Icons.cloud_upload_rounded : Icons.cloud_upload_outlined,
+                        color: isEnabled ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                        size: 20,
+                      ),
+              ),
             ),
-            boxShadow: [
-              BoxShadow(color: context.primaryColor.withValues(alpha: 0.1), blurRadius: 12, offset: const Offset(0, 2)),
-            ],
-          ),
-          child: Container(
-            margin: const EdgeInsets.all(1.5),
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(Radius.circular(18.5)),
-              color: context.colorScheme.surfaceContainerLow,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [
-                          context.primaryColor.withValues(alpha: 0.2),
-                          context.primaryColor.withValues(alpha: 0.1),
-                        ],
+                  Text(
+                    'Back up to Telegram',
+                    style: context.textTheme.titleMedium?.copyWith(color: scheme.onSurface),
+                  ),
+                  if (errorCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        context.t.upload_error_with_count(count: errorCount),
+                        style: context.textTheme.labelMedium?.copyWith(color: scheme.error),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        isEnabled ? 'Automatic backup is on' : 'Paused until you turn it on',
+                        style: context.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                       ),
                     ),
-                    child: isProcessing
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(Icons.cloud_upload_outlined, color: context.primaryColor, size: 24),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                'Back up to Telegram',
-                                style: context.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: context.primaryColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (errorCount > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              context.t.upload_error_with_count(count: errorCount),
-                              style: context.textTheme.labelMedium?.copyWith(color: context.colorScheme.error),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Switch.adaptive(value: _isEnabled, onChanged: (value) => _onToggle(value)),
                 ],
               ),
             ),
-          ),
-        );
-      },
+            Switch.adaptive(value: isEnabled, onChanged: (value) => _onToggle(ref, value)),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -57,10 +57,15 @@ class _ImmichTextButtonState extends State<ImmichTextButton> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final spinnerColor = widget.variant == ImmichVariant.filled ? colorScheme.onPrimary : colorScheme.primary;
     final Widget? icon = _isLoading
-        ? const SizedBox.square(
+        ? SizedBox.square(
             dimension: ImmichIconSize.md,
-            child: CircularProgressIndicator(strokeWidth: ImmichBorderWidth.lg),
+            child: CircularProgressIndicator(
+              strokeWidth: ImmichBorderWidth.lg,
+              valueColor: AlwaysStoppedAnimation<Color>(spinnerColor),
+            ),
           )
         : widget.icon != null
         ? Icon(widget.icon, fontWeight: .w600)

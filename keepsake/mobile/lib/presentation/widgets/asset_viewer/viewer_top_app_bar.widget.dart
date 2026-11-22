@@ -72,21 +72,14 @@ class ViewerTopAppBar extends ConsumerWidget implements PreferredSizeWidget {
       ignoring: opacity < 1.0,
       child: AnimatedOpacity(
         opacity: opacity,
-        duration: Durations.short2,
+        duration: AmbryMotion.durationOf(context, AmbryMotion.dFast),
         child: Stack(
           children: [
             Positioned.fill(
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: showingDetails
-                        ? null
-                        : const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.black45, Colors.black12, Colors.transparent],
-                            stops: [0.0, 0.7, 1.0],
-                          ),
+                    gradient: showingDetails ? null : ImmichColors.scrimViewerTop,
                   ),
                 ),
               ),
@@ -130,17 +123,17 @@ class _AppBarBackButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showingDetails = ref.watch(assetViewerProvider.select((state) => state.showingDetails));
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: showingDetails ? context.colorScheme.surface : Colors.transparent,
-        shape: const CircleBorder(),
-        iconSize: 22,
-        iconColor: showingDetails ? context.colorScheme.onSurface : Colors.white,
-        padding: const EdgeInsets.all(10.0),
-        elevation: showingDetails ? 4 : 0,
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: IconButton(
+        style: IconButton.styleFrom(
+          backgroundColor: showingDetails ? context.colorScheme.surfaceContainerHigh : const Color(0x94000000),
+          foregroundColor: showingDetails ? context.colorScheme.onSurface : Colors.white,
+          fixedSize: const Size(40, 40),
+        ),
+        onPressed: context.maybePop,
+        icon: const Icon(Icons.arrow_back_rounded, size: 22),
       ),
-      onPressed: context.maybePop,
-      child: const Icon(Icons.arrow_back_rounded),
     );
   }
 }
@@ -163,8 +156,20 @@ class _AssetInfoTitle extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(dateFormatted, style: context.textTheme.labelLarge?.copyWith(color: Colors.white)),
-        Text(timeFormatted, style: context.textTheme.labelMedium?.copyWith(color: Colors.white70)),
+        Text(
+          dateFormatted,
+          style: context.textTheme.labelLarge?.copyWith(
+            color: Colors.white,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        Text(
+          timeFormatted,
+          style: context.textTheme.labelMedium?.copyWith(
+            color: Colors.white70,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
       ],
     );
   }

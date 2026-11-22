@@ -8,6 +8,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/pages/common/settings.page.dart';
+import 'package:immich_mobile/platform/keepsake_api.g.dart';
 import 'package:immich_mobile/providers/auth.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/platform.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/readonly_mode.provider.dart';
@@ -15,8 +16,7 @@ import 'package:immich_mobile/providers/locale_provider.dart';
 import 'package:immich_mobile/providers/websocket.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/widgets/common/app_bar_dialog/app_bar_profile_info.dart';
-import 'package:immich_mobile/widgets/common/confirm_dialog.dart';
-import 'package:immich_mobile/platform/keepsake_api.g.dart';
+import 'package:immich_ui/immich_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -44,9 +44,8 @@ class ImmichAppBarDialog extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(localeProvider);
-    final theme = context.themeData;
-    final bool isHorizontal = !context.isMobile;
-    final horizontalPadding = isHorizontal ? 100.0 : 20.0;
+    final scheme = context.colorScheme;
+    final colors = context.immichColors;
     final isLoggingOut = useState(false);
     final isSelfTesting = useState(false);
     final isSnapshotting = useState(false);
@@ -57,268 +56,210 @@ class ImmichAppBarDialog extends HookConsumerWidget {
     );
     final activeDevice = useFuture(
       useMemoized(
-        () => ref.read(keepsakeLibraryApiProvider).getActiveDevice().then<ActiveDeviceStatus?>((s) => s, onError: (_) => null),
+        () => ref
+            .read(keepsakeLibraryApiProvider)
+            .getActiveDevice()
+            .then<ActiveDeviceStatus?>((s) => s, onError: (_) => null),
         [statusRefresh.value],
       ),
     );
     final isClaiming = useState(false);
     final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
 
-    useEffect(() {
-      // Serverless mode: no remote server disk/user refresh calls.
-      return null;
-    }, []);
-
-    SizedBox buildTopRow() {
-      return SizedBox(
-        height: 56,
-        child: Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            IconButton(
-              onPressed: () => ContextHelper(context).pop(),
-              icon: Icon(Icons.close, size: 20, color: context.colorScheme.onSurfaceVariant),
-            ),
-            Align(
-              alignment: Alignment.center,
-              child: Text(
-                'Ambry',
-                style: context.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    ListTile buildActionButton(IconData icon, String text, Function() onTap, {Widget? trailing}) {
+    Widget buildActionTile(
+      IconData icon,
+      String text,
+      VoidCallback onTap, {
+      Widget? trailing,
+      Color? iconColor,
+      Color? textColor,
+    }) {
       return ListTile(
-        dense: true,
-        visualDensity: VisualDensity.standard,
-        contentPadding: const EdgeInsets.only(left: 30, right: 30),
-        minLeadingWidth: 40,
-        leading: SizedBox(child: Icon(icon, color: theme.textTheme.labelLarge?.color?.withAlpha(250), size: 20)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        leading: Icon(icon, color: iconColor ?? scheme.onSurfaceVariant, size: 22),
         title: Text(
           text,
-          style: theme.textTheme.labelLarge?.copyWith(color: theme.textTheme.labelLarge?.color?.withAlpha(250)),
+          style: context.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w500,
+            color: textColor ?? scheme.onSurface,
+          ),
         ),
+        trailing: trailing ?? Icon(Icons.chevron_right_rounded, size: 20, color: scheme.onSurfaceVariant),
         onTap: onTap,
-        trailing: trailing,
       );
     }
 
-    ListTile buildSettingButton() {
-      return buildActionButton(
-        Icons.settings_outlined,
-        context.t.settings,
-        () => context.pushRoute(const SettingsRoute()),
-      );
+    Future<void> runSelfTest() async {
+      if (isSelfTesting.value) {
+        return;
+      }
+      isSelfTesting.value = true;
+      try {
+        final report = await ref.read(keepsakeTelegramApiProvider).runSelfTest();
+        if (!context.mounted) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(report.success ? 'Vault self-test passed' : 'Vault self-test failed'),
+            content: SingleChildScrollView(child: Text(report.steps.join('\n'))),
+            actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(context.t.ok))],
+          ),
+        );
+      } on PlatformException catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
+        }
+      } finally {
+        isSelfTesting.value = false;
+      }
     }
 
-    ListTile buildFreeUpSpaceButton() {
-      return buildActionButton(
-        Icons.cleaning_services_outlined,
-        context.t.free_up_space,
-        () => context.pushRoute(SettingsSubRoute(section: SettingSection.freeUpSpace)),
-      );
+    Future<void> runSnapshot() async {
+      if (isSnapshotting.value) {
+        return;
+      }
+      isSnapshotting.value = true;
+      try {
+        final count = await ref.read(keepsakeLibraryApiProvider).snapshotIndex(true);
+        statusRefresh.value++;
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Library index backed up to Telegram ($count items)')));
+        }
+      } on PlatformException catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
+        }
+      } finally {
+        isSnapshotting.value = false;
+      }
     }
 
-    ListTile buildSelfTestButton() {
-      return buildActionButton(
-        Icons.health_and_safety_outlined,
-        'Run vault self-test',
-        () async {
-          if (isSelfTesting.value) {
-            return;
-          }
-          isSelfTesting.value = true;
-          try {
-            final report = await ref.read(keepsakeTelegramApiProvider).runSelfTest();
-            if (!context.mounted) {
-              return;
-            }
-            await showDialog<void>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(report.success ? 'Vault self-test passed' : 'Vault self-test failed'),
-                content: SingleChildScrollView(child: Text(report.steps.join('\n'))),
-                actions: [TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(context.t.ok))],
-              ),
-            );
-          } on PlatformException catch (error) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
-            }
-          } finally {
-            isSelfTesting.value = false;
-          }
-        },
-        trailing: isSelfTesting.value
-            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-            : null,
-      );
-    }
-
-    /// Uploads an encrypted copy of the on-device index now; a new phone restores from the newest copy.
-    ListTile buildSnapshotButton() {
-      return buildActionButton(
-        Icons.cloud_sync_outlined,
-        'Back up library index now',
-        () async {
-          if (isSnapshotting.value) {
-            return;
-          }
-          isSnapshotting.value = true;
-          try {
-            final count = await ref.read(keepsakeLibraryApiProvider).snapshotIndex(true);
-            statusRefresh.value++;
-            if (context.mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Library index backed up to Telegram ($count items)')));
-            }
-          } on PlatformException catch (error) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
-            }
-          } finally {
-            isSnapshotting.value = false;
-          }
-        },
-        trailing: isSnapshotting.value
-            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-            : null,
-      );
-    }
-
-    ListTile buildAppLogButton() {
-      return buildActionButton(
-        Icons.assignment_outlined,
-        context.t.profile_drawer_app_logs,
-        () => context.pushRoute(const AppLogRoute()),
-      );
-    }
-
-    ListTile buildSignOutButton() {
-      return buildActionButton(
-        Icons.logout_rounded,
-        context.t.sign_out,
-        () async {
-          if (isLoggingOut.value) {
-            return;
-          }
-
-          unawaited(
-            showDialog(
-              context: context,
-              builder: (BuildContext ctx) {
-                return ConfirmDialog(
-                  title: context.t.app_bar_signout_dialog_title,
-                  content: context.t.app_bar_signout_dialog_content,
-                  ok: context.t.yes,
-                  onOk: () async {
-                    isLoggingOut.value = true;
-                    await ref.read(authProvider.notifier).logout().whenComplete(() => isLoggingOut.value = false);
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    ref.read(websocketProvider.notifier).disconnect();
-                    if (!context.mounted) {
-                      return;
-                    }
-
-                    unawaited(context.replaceRoute(const LoginRoute()));
-                  },
-                );
-              },
-            ),
+    Future<void> handleSignOut() async {
+      if (isLoggingOut.value) {
+        return;
+      }
+      await showDialog<bool>(
+        context: context,
+        builder: (BuildContext ctx) {
+          return AmbryConfirmDialog(
+            title: context.t.app_bar_signout_dialog_title,
+            content: context.t.app_bar_signout_dialog_content,
+            confirmLabel: context.t.sign_out,
+            cancelLabel: context.t.cancel,
+            destructive: true,
+            onConfirm: () async {
+              isLoggingOut.value = true;
+              try {
+                await ref.read(authProvider.notifier).logout();
+                if (!context.mounted) {
+                  return;
+                }
+                ref.read(websocketProvider.notifier).disconnect();
+                if (!context.mounted) {
+                  return;
+                }
+                unawaited(context.replaceRoute(const LoginRoute()));
+              } finally {
+                isLoggingOut.value = false;
+              }
+            },
           );
         },
-        trailing: isLoggingOut.value
-            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
-            : null,
       );
     }
 
-    /// Another phone claimed the vault: this phone no longer writes to it until the user takes it back.
     Widget buildActiveDeviceWarning() {
       final status = activeDevice.data;
       if (status == null || status.isThisDevice) {
         return const SizedBox.shrink();
       }
-      return Container(
-        margin: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
-        padding: const EdgeInsets.fromLTRB(14, 12, 8, 4),
-        decoration: BoxDecoration(
-          color: context.colorScheme.errorContainer.withValues(alpha: 0.35),
-          borderRadius: const BorderRadius.all(Radius.circular(10)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Backups paused on this phone', style: context.textTheme.labelLarge),
-            const SizedBox(height: 4),
-            Text(
-              'Your vault is now active on ${status.deviceName ?? 'another phone'}'
-              '${status.claimedAtMs == null ? '' : ' (since ${_ago(status.claimedAtMs!)})'}. Only one phone can write '
-              'to a vault, so this phone stopped backing up to avoid overwriting its albums and edits.',
-              style: context.textTheme.bodySmall,
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: isClaiming.value
-                    ? null
-                    : () async {
-                        isClaiming.value = true;
-                        try {
-                          await ref.read(keepsakeLibraryApiProvider).claimVault();
-                          statusRefresh.value++;
-                        } on PlatformException catch (error) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
-                          }
-                        } finally {
-                          isClaiming.value = false;
-                        }
-                      },
-                child: const Text('Use this phone'),
-              ),
-            ),
-          ],
-        ),
+      return AmbryBanner(
+        margin: const EdgeInsets.only(bottom: 12),
+        variant: AmbryBannerVariant.error,
+        title: 'Backups paused on this phone',
+        body:
+            'Your vault is active on ${status.deviceName ?? 'another phone'}'
+            '${status.claimedAtMs == null ? '' : ' (since ${_ago(status.claimedAtMs!)})'}. '
+            'Only one phone writes to a vault at a time.',
+        actions: [
+          FilledButton.tonal(
+            onPressed: isClaiming.value
+                ? null
+                : () async {
+                    isClaiming.value = true;
+                    try {
+                      await ref.read(keepsakeLibraryApiProvider).claimVault();
+                      statusRefresh.value++;
+                    } on PlatformException catch (error) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
+                      }
+                    } finally {
+                      isClaiming.value = false;
+                    }
+                  },
+            child: isClaiming.value
+                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Use this phone'),
+          ),
+        ],
       );
     }
 
     Widget buildStorageInformation() {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      final indexStatus = backupStatus.data;
+      final isUpToDate = indexStatus != null && indexStatus.lastSnapshotAtMs != null && indexStatus.pendingChanges == 0;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.verified_user_outlined, size: 20, color: context.primaryColor),
-            const SizedBox(width: 10),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isUpToDate ? colors.successContainer : scheme.surfaceContainerHigh,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.verified_user_outlined,
+                size: 18,
+                color: isUpToDate ? colors.onSuccessContainer : scheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Private Telegram vault', style: context.textTheme.labelLarge),
+                  Text('Private Telegram vault', style: context.textTheme.titleSmall?.copyWith(color: scheme.onSurface)),
+                  const SizedBox(height: 2),
                   Text(
                     vaultCount.hasData
-                        ? '${vaultCount.data} item(s) in your private Telegram channel'
-                        : 'Storage: your private Telegram channel • no server',
-                    style: context.textTheme.bodySmall,
-                  ),
-                  if (backupStatus.data case final status?)
-                    Text(
-                      status.lastSnapshotAtMs == null
-                          ? 'Library index not backed up yet'
-                          : 'Library index backed up ${_ago(status.lastSnapshotAtMs!)}'
-                                '${status.pendingChanges == 0 ? ' · up to date' : ' · newer changes back up daily'}',
-                      style: context.textTheme.bodySmall,
+                        ? '${vaultCount.data} items in your private Telegram channel'
+                        : 'Storage: your private Telegram channel · no server',
+                    style: context.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
+                  ),
+                  if (indexStatus != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      indexStatus.lastSnapshotAtMs == null
+                          ? 'Library index not backed up yet'
+                          : 'Library index backed up ${_ago(indexStatus.lastSnapshotAtMs!)}'
+                                '${indexStatus.pendingChanges == 0 ? ' · up to date' : ' · changes back up daily'}',
+                      style: context.textTheme.bodySmall?.copyWith(
+                        color: isUpToDate ? colors.success : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -327,24 +268,22 @@ class ImmichAppBarDialog extends HookConsumerWidget {
       );
     }
 
-    Padding buildFooter() {
+    Widget buildFooter() {
       return Padding(
-        padding: const EdgeInsets.only(top: 10, bottom: 20),
+        padding: const EdgeInsets.only(top: 12, bottom: 8),
         child: Wrap(
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
-          runSpacing: 6,
+          spacing: 4,
           children: [
-            Text('Powered by the Telegram API', style: context.textTheme.bodySmall),
-            const SizedBox(width: 14, child: Text("•", textAlign: TextAlign.center)),
-            InkWell(
-              onTap: () async {
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: scheme.onSurfaceVariant),
+              onPressed: () async {
                 ContextHelper(context).pop();
                 final packageInfo = await PackageInfo.fromPlatform();
                 if (!context.mounted) {
                   return;
                 }
-
                 showLicensePage(
                   context: context,
                   applicationName: 'Ambry',
@@ -355,89 +294,179 @@ class ImmichAppBarDialog extends HookConsumerWidget {
                       '(Boost Software License). Source code: $_sourceCodeUrl',
                 );
               },
-              child: Text(context.t.licenses, style: context.textTheme.bodySmall),
+              child: Text(context.t.licenses, style: context.textTheme.labelMedium),
             ),
-            const SizedBox(width: 14, child: Text("•", textAlign: TextAlign.center)),
-            InkWell(
-              onTap: () => unawaited(launchUrl(Uri.parse(_sourceCodeUrl), mode: LaunchMode.externalApplication)),
-              child: Text('Source code', style: context.textTheme.bodySmall),
+            Text('·', style: TextStyle(color: scheme.onSurfaceVariant)),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: scheme.onSurfaceVariant),
+              onPressed: () => unawaited(launchUrl(Uri.parse(_sourceCodeUrl), mode: LaunchMode.externalApplication)),
+              child: Text('Source code', style: context.textTheme.labelMedium),
             ),
-            const SizedBox(width: 14, child: Text("•", textAlign: TextAlign.center)),
-            InkWell(
-              onTap: () => unawaited(launchUrl(Uri.parse(_privacyPolicyUrl), mode: LaunchMode.externalApplication)),
-              child: Text('Privacy', style: context.textTheme.bodySmall),
+            Text('·', style: TextStyle(color: scheme.onSurfaceVariant)),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: scheme.onSurfaceVariant),
+              onPressed: () => unawaited(launchUrl(Uri.parse(_privacyPolicyUrl), mode: LaunchMode.externalApplication)),
+              child: Text('Privacy', style: context.textTheme.labelMedium),
             ),
           ],
         ),
       );
     }
 
-    Padding buildReadonlyMessage() {
-      return Padding(
-        padding: const EdgeInsets.only(left: 10.0, right: 10.0),
-        child: ListTile(
-          dense: true,
-          visualDensity: VisualDensity.standard,
-          contentPadding: const EdgeInsets.only(left: 20, right: 20),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-          minLeadingWidth: 20,
-          tileColor: theme.primaryColor.withAlpha(80),
-          title: Text(
-            context.t.profile_drawer_readonly_mode,
-            style: theme.textTheme.labelLarge?.copyWith(color: theme.textTheme.labelLarge?.color?.withAlpha(250)),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    return Dismissible(
-      behavior: HitTestBehavior.translucent,
-      direction: DismissDirection.down,
-      onDismissed: (_) => ContextHelper(context).pop(),
-      key: const Key('app_bar_dialog'),
-      child: Dialog(
-        clipBehavior: Clip.hardEdge,
-        alignment: Alignment.topCenter,
-        insetPadding: EdgeInsets.only(
-          top: isHorizontal ? 20 : 40,
-          left: horizontalPadding,
-          right: horizontalPadding,
-          bottom: isHorizontal ? 20 : 100,
-        ),
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
-        child: SizedBox(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8), child: buildTopRow()),
-                Container(
-                  decoration: BoxDecoration(
-                    color: context.colorScheme.surface,
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
-                  ),
-                  margin: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
-                  child: Column(
-                    children: [
-                      const AppBarProfileInfoBox(),
-                      Divider(thickness: 4, color: context.colorScheme.surfaceContainer),
-                      buildStorageInformation(),
-                    ],
-                  ),
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: scheme.outlineVariant,
+                  borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.pill)),
                 ),
-                buildActiveDeviceWarning(),
-                if (isReadonlyModeEnabled) buildReadonlyMessage(),
-                buildSelfTestButton(),
-                buildSnapshotButton(),
-                buildAppLogButton(),
-                buildFreeUpSpaceButton(),
-                buildSettingButton(),
-                buildSignOutButton(),
-                buildFooter(),
+              ),
+            ),
+            Row(
+              children: [
+                const SizedBox(width: 4),
+                const AmbryBrandMark(iconSize: 24),
+                const Spacer(),
+                IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: () => ContextHelper(context).pop(),
+                  icon: Icon(Icons.close_rounded, color: scheme.onSurfaceVariant),
+                ),
               ],
             ),
-          ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  const AppBarProfileInfoBox(),
+                  Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+                  buildStorageInformation(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            buildActiveDeviceWarning(),
+            if (isReadonlyModeEnabled)
+              AmbryBanner(
+                margin: const EdgeInsets.only(bottom: 12),
+                variant: AmbryBannerVariant.info,
+                title: context.t.profile_drawer_readonly_mode,
+              ),
+            Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  buildActionTile(
+                    Icons.cleaning_services_outlined,
+                    context.t.free_up_space,
+                    () {
+                      ContextHelper(context).pop();
+                      unawaited(context.pushRoute(SettingsSubRoute(section: SettingSection.freeUpSpace)));
+                    },
+                  ),
+                  Divider(height: 1, thickness: 1, indent: 54, color: scheme.outlineVariant),
+                  buildActionTile(
+                    Icons.settings_outlined,
+                    context.t.settings,
+                    () {
+                      ContextHelper(context).pop();
+                      unawaited(context.pushRoute(const SettingsRoute()));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Theme(
+                data: context.themeData.copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(Icons.build_outlined, size: 22, color: scheme.onSurfaceVariant),
+                  title: Text(
+                    'Vault maintenance',
+                    style: context.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500, color: scheme.onSurface),
+                  ),
+                  children: [
+                    Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+                    buildActionTile(
+                      Icons.cloud_sync_outlined,
+                      'Back up library index now',
+                      runSnapshot,
+                      trailing: isSnapshotting.value
+                          ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const SizedBox.shrink(),
+                    ),
+                    Divider(height: 1, thickness: 1, indent: 54, color: scheme.outlineVariant),
+                    buildActionTile(
+                      Icons.health_and_safety_outlined,
+                      'Run vault self-test',
+                      runSelfTest,
+                      trailing: isSelfTesting.value
+                          ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const SizedBox.shrink(),
+                    ),
+                    Divider(height: 1, thickness: 1, indent: 54, color: scheme.outlineVariant),
+                    buildActionTile(
+                      Icons.assignment_outlined,
+                      context.t.profile_drawer_app_logs,
+                      () {
+                        ContextHelper(context).pop();
+                        unawaited(context.pushRoute(const AppLogRoute()));
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainer,
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: buildActionTile(
+                Icons.logout_rounded,
+                context.t.sign_out,
+                handleSignOut,
+                iconColor: scheme.error,
+                textColor: scheme.error,
+                trailing: isLoggingOut.value
+                    ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const SizedBox.shrink(),
+              ),
+            ),
+            buildFooter(),
+          ],
         ),
       ),
     );

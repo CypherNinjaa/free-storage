@@ -76,8 +76,19 @@ enum SettingSection {
   };
 
   static Iterable<SettingSection> visible(WidgetRef ref) {
-    // Serverless mode (Architecture §4): hide server-only Networking and Passkeys sections.
-    return values.where((section) => section != passkeys && section != networking);
+    // Serverless mode (Architecture §4): hide server-only Networking and Passkeys sections,
+    // ordered by user frequency per 06_screens.md §14.
+    return const [
+      SettingSection.backup,
+      SettingSection.freeUpSpace,
+      SettingSection.timeline,
+      SettingSection.assetViewer,
+      SettingSection.preferences,
+      SettingSection.notifications,
+      SettingSection.languages,
+      SettingSection.beta,
+      SettingSection.advanced,
+    ];
   }
 
   const SettingSection(this.icon);

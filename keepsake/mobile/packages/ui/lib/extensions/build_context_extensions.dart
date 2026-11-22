@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:immich_ui/src/theme.dart';
 
 extension ContextHelper on BuildContext {
   // Returns the current padding from MediaQuery
@@ -49,6 +50,9 @@ extension ContextHelper on BuildContext {
 
   // Current ColorScheme used
   ColorScheme get colorScheme => themeData.colorScheme;
+
+  // Extended Sunlit Alcove semantic colors
+  ImmichColors get immichColors => themeData.extension<ImmichColors>() ?? ImmichColors.sunlitAlcove(colorScheme.brightness);
 
   // Navigate by pushing or popping routes from the current context
   NavigatorState get navigator => Navigator.of(this);

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:immich_ui/extensions/build_context_extensions.dart';
+import 'package:immich_ui/src/constants.dart';
 
+/// Calm tonal SettingsCard (04_design_system.md §1.4 & §4):
+/// neutral `onSurface` title, tonal 40dp icon badge, subtle trailing chevron.
 class SettingsCard extends StatelessWidget {
   const SettingsCard({super.key, required this.icon, required this.title, required this.subtitle, required this.onTap});
 
@@ -11,26 +13,37 @@ class SettingsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.symmetric(horizontal: ImmichSpacing.lg),
       child: Card(
-        elevation: 0,
+        elevation: ImmichElevation.none,
         clipBehavior: Clip.antiAlias,
-        color: context.colorScheme.surfaceContainer,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-        margin: const EdgeInsets.symmetric(vertical: 4.0),
+        color: scheme.surfaceContainerLow,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(ImmichRadius.lg))),
+        margin: const EdgeInsets.symmetric(vertical: ImmichSpacing.xs),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+          contentPadding: const EdgeInsets.symmetric(horizontal: ImmichSpacing.lg, vertical: ImmichSpacing.xs),
           leading: Container(
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(Radius.circular(16)),
-              color: context.isDarkTheme ? Colors.black26 : Colors.white.withAlpha(100),
+              shape: BoxShape.circle,
+              color: scheme.surfaceContainerHigh,
             ),
-            padding: const EdgeInsets.all(16.0),
-            child: Icon(icon, color: context.primaryColor),
+            child: Icon(icon, size: ImmichIconSize.sm, color: scheme.primary),
           ),
-          title: Text(title, style: context.textTheme.titleMedium!.copyWith(color: context.primaryColor)),
-          subtitle: Text(subtitle, style: context.textTheme.bodyMedium),
+          title: Text(
+            title,
+            style: textTheme.titleMedium?.copyWith(color: scheme.onSurface, fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          trailing: Icon(Icons.chevron_right_rounded, size: ImmichIconSize.sm, color: scheme.onSurfaceVariant),
           onTap: onTap,
         ),
       ),

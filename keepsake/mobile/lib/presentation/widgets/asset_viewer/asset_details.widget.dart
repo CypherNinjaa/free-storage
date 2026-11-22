@@ -13,6 +13,7 @@ import 'package:immich_mobile/presentation/widgets/asset_viewer/asset_details/ra
 import 'package:immich_mobile/presentation/widgets/asset_viewer/asset_details/tag_details.widget.dart';
 import 'package:immich_mobile/presentation/widgets/asset_viewer/asset_details/technical_details.widget.dart';
 import 'package:immich_mobile/providers/infrastructure/asset_viewer/asset.provider.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class AssetDetails extends ConsumerWidget {
   final BaseAsset asset;
@@ -27,16 +28,9 @@ class AssetDetails extends ConsumerWidget {
     return Container(
       constraints: BoxConstraints(minHeight: minHeight),
       decoration: BoxDecoration(
-        color: context.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            offset: const Offset(0, -3),
-            blurRadius: 10,
-            spreadRadius: 2,
-          ),
-        ],
+        color: context.colorScheme.surfaceContainerLow,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(ImmichRadius.xl)),
+        border: Border(top: BorderSide(color: context.colorScheme.outlineVariant)),
       ),
       child: SafeArea(
         top: false,
@@ -45,6 +39,7 @@ class AssetDetails extends ConsumerWidget {
           children: [
             const DragHandle(),
             DateTimeDetails(asset: asset, exifInfo: exifInfo),
+            _VaultStatusPill(storage: asset.storage),
             AssetOwnerDetails(asset: asset),
             SheetAssetDescription(asset: asset, exifInfo: exifInfo),
             PeopleDetails(asset: asset),
@@ -53,7 +48,64 @@ class AssetDetails extends ConsumerWidget {
             RatingDetails(exifInfo: exifInfo),
             AppearsInDetails(asset: asset),
             TagDetails(asset: asset),
-            SizedBox(height: context.padding.bottom + 48),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VaultStatusPill extends StatelessWidget {
+  final AssetState storage;
+
+  const _VaultStatusPill({required this.storage});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = context.colorScheme;
+    final colors = context.immichColors;
+
+    final (icon, label, bg, fg) = switch (storage) {
+      AssetState.merged => (
+        Icons.verified_user_outlined,
+        'Backed up in Telegram vault & on device',
+        colors.successContainer,
+        colors.onSuccessContainer,
+      ),
+      AssetState.remote => (
+        Icons.cloud_done_outlined,
+        'Stored in Telegram vault',
+        colors.infoContainer,
+        colors.onInfoContainer,
+      ),
+      AssetState.local => (
+        Icons.smartphone_outlined,
+        'On device only',
+        scheme.surfaceContainerHigh,
+        scheme.onSurfaceVariant,
+      ),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: fg),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                label,
+                style: context.textTheme.labelMedium?.copyWith(color: fg, fontWeight: FontWeight.w600),
+              ),
+            ),
           ],
         ),
       ),

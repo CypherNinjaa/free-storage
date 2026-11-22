@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 // Error widget to be used in Scaffold when an AsyncError is received
 class ScaffoldErrorBody extends StatelessWidget {
@@ -11,32 +11,11 @@ class ScaffoldErrorBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          context.t.scaffold_body_error_occurred,
-          style: context.textTheme.displayMedium,
-          textAlign: TextAlign.center,
-        ),
-        if (withIcon)
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 15),
-              child: Icon(
-                Icons.error_outline,
-                size: 100,
-                color: context.themeData.iconTheme.color?.withValues(alpha: 0.5),
-              ),
-            ),
-          ),
-        if (withIcon && errorMsg != null)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(errorMsg!, style: context.textTheme.displaySmall, textAlign: TextAlign.center),
-          ),
-      ],
+    return AmbryEmptyState(
+      icon: withIcon ? Icons.error_outline_rounded : Icons.info_outline_rounded,
+      title: context.t.scaffold_body_error_occurred,
+      subtitle: withIcon ? errorMsg : null,
+      isError: true,
     );
   }
 }

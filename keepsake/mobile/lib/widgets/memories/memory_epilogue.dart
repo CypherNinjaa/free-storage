@@ -58,7 +58,7 @@ class _MemoryEpilogueState extends State<MemoryEpilogue> with TickerProviderStat
                   onPressed: widget.onStartOver,
                   child: Text(
                     context.t.memories_start_over,
-                    style: context.textTheme.displayMedium?.copyWith(
+                    style: context.textTheme.labelLarge?.copyWith(
                       color: context.isDarkTheme ? context.colorScheme.primary : context.colorScheme.inversePrimary,
                     ),
                   ),

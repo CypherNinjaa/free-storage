@@ -3,18 +3,16 @@ import 'dart:math';
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:immich_mobile/constants/colors.dart';
 import 'package:immich_mobile/extensions/duration_extensions.dart';
 import 'package:immich_mobile/models/cast/cast_manager_state.dart';
 import 'package:immich_mobile/providers/asset_viewer/asset_viewer.provider.dart';
 import 'package:immich_mobile/providers/asset_viewer/video_player_provider.dart';
 import 'package:immich_mobile/providers/cast.provider.dart';
 import 'package:immich_mobile/widgets/asset_viewer/animated_play_pause.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class VideoControls extends ConsumerStatefulWidget {
   final String videoPlayerName;
-
-  static const List<Shadow> _controlShadows = [Shadow(color: Colors.black87, blurRadius: 6, offset: Offset(0, 1))];
 
   const VideoControls({super.key, required this.videoPlayerName});
 
@@ -105,49 +103,62 @@ class _VideoControlsState extends ConsumerState<VideoControls> {
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
       child: Column(
-        spacing: 4,
+        spacing: 8,
         children: [
           Row(
             children: [
               IconButton(
-                iconSize: 32,
-                padding: const EdgeInsets.all(12),
-                constraints: const BoxConstraints(),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0x94000000),
+                  fixedSize: const Size(44, 44),
+                ),
+                iconSize: 26,
                 icon: isFinished
-                    ? const Icon(Icons.replay, color: Colors.white, shadows: VideoControls._controlShadows)
-                    : AnimatedPlayPause(
-                        color: Colors.white,
-                        playing: isPlaying,
-                        shadows: VideoControls._controlShadows,
-                      ),
+                    ? const Icon(Icons.replay_rounded, color: Colors.white)
+                    : AnimatedPlayPause(color: Colors.white, playing: isPlaying),
                 onPressed: () => _toggle(isCasting),
               ),
               const Spacer(),
               IgnorePointer(
-                child: Text(
-                  "${position.format()} / ${duration.format()}",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                    shadows: VideoControls._controlShadows,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: const BoxDecoration(
+                    color: Color(0x94000000),
+                    borderRadius: BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+                  ),
+                  child: Text(
+                    "${position.format()} / ${duration.format()}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
             ],
           ),
-          Slider(
-            value: min(position.inMicroseconds.toDouble(), duration.inMicroseconds.toDouble()),
-            min: 0,
-            max: max(duration.inMicroseconds.toDouble(), 1),
-            thumbColor: Colors.white,
-            activeColor: Colors.white,
-            inactiveColor: whiteOpacity75,
-            padding: EdgeInsets.zero,
-            onChangeStart: (_) => notifier.hold(),
-            onChangeEnd: (_) => notifier.release(),
-            onChanged: isLoaded ? (value) => _onSeek(isCasting, value) : null,
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3.5,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+              activeTrackColor: Colors.white,
+              inactiveTrackColor: Colors.white38,
+              thumbColor: Colors.white,
+              overlayColor: Colors.white24,
+              year2023: false,
+            ),
+            child: Slider(
+              value: min(position.inMicroseconds.toDouble(), duration.inMicroseconds.toDouble()),
+              min: 0,
+              max: max(duration.inMicroseconds.toDouble(), 1),
+              padding: EdgeInsets.zero,
+              onChangeStart: (_) => notifier.hold(),
+              onChangeEnd: (_) => notifier.release(),
+              onChanged: isLoaded ? (value) => _onSeek(isCasting, value) : null,
+            ),
           ),
         ],
       ),

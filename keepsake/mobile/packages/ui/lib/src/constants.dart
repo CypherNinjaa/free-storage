@@ -49,6 +49,9 @@ abstract class ImmichRadius {
   /// Extra extra large radius: 24.0
   static const double xxl = 24.0;
 
+  /// Pill / stadium radius: 999.0
+  static const double pill = 999.0;
+
   /// Full circular radius: infinity
   static const double full = double.infinity;
 }

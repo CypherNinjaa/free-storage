@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
-import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/presentation/widgets/timeline/timeline.state.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class BaseBottomSheet extends ConsumerStatefulWidget {
   final List<Widget> actions;
@@ -40,11 +40,25 @@ class BaseBottomSheet extends ConsumerStatefulWidget {
 
 class _BaseDraggableScrollableSheetState extends ConsumerState<BaseBottomSheet> {
   late DraggableScrollableController _controller;
+  bool _ownsController = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = widget.controller ?? DraggableScrollableController();
+    if (widget.controller != null) {
+      _controller = widget.controller!;
+    } else {
+      _controller = DraggableScrollableController();
+      _ownsController = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) {
+      _controller.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -58,53 +72,67 @@ class _BaseDraggableScrollableSheetState extends ConsumerState<BaseBottomSheet> 
         unawaited(
           _controller.animateTo(
             widget.minChildSize,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
+            duration: AmbryMotion.durationOf(context, AmbryMotion.dStandard),
+            curve: AmbryMotion.easeSpatial,
           ),
         );
       }
     });
+
+    final midSnap = widget.initialChildSize.clamp(widget.minChildSize, widget.maxChildSize);
+    final snapSizes = <double>[
+      if (midSnap > widget.minChildSize + 0.02 && midSnap < widget.maxChildSize - 0.02) midSnap,
+    ];
 
     return DraggableScrollableSheet(
       controller: _controller,
       initialChildSize: widget.initialChildSize,
       minChildSize: widget.minChildSize,
       maxChildSize: widget.maxChildSize,
-      snap: false,
+      snap: true,
+      snapSizes: snapSizes.isEmpty ? null : snapSizes,
       expand: widget.expand,
       shouldCloseOnMinExtent: widget.shouldCloseOnMinExtent,
       builder: (BuildContext context, ScrollController scrollController) {
-        return Card(
-          color: widget.backgroundColor ?? context.colorScheme.surfaceContainer,
-          elevation: 3.0,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
-          margin: EdgeInsets.zero,
-          child: Column(
-            children: [
-              Expanded(
-                child: CustomScrollView(
-                  controller: scrollController,
-                  slivers: [
-                    const SliverToBoxAdapter(child: _DragHandle()),
-                    if (widget.actions.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Column(
-                          children: [
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: widget.actions),
-                            ),
-                            const Divider(indent: 16, endIndent: 16),
-                            const SizedBox(height: 16),
-                          ],
+        return Material(
+          color: widget.backgroundColor ?? context.colorScheme.surfaceContainerLow,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(ImmichRadius.xl)),
+            side: BorderSide(color: context.colorScheme.outlineVariant.withValues(alpha: 0.6)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Expanded(
+                  child: CustomScrollView(
+                    controller: scrollController,
+                    slivers: [
+                      const SliverToBoxAdapter(child: _DragHandle()),
+                      if (widget.actions.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Column(
+                            children: [
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: widget.actions),
+                              ),
+                              const Divider(indent: 16, endIndent: 16),
+                              const SizedBox(height: 12),
+                            ],
+                          ),
                         ),
-                      ),
-                    if (widget.slivers != null) ...widget.slivers!,
-                  ],
+                      if (widget.slivers != null) ...widget.slivers!,
+                    ],
+                  ),
                 ),
-              ),
-              if (widget.footer != null) widget.footer!,
-            ],
+                if (widget.footer != null) widget.footer!,
+              ],
+            ),
           ),
         );
       },
@@ -118,15 +146,15 @@ class _DragHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 38,
+      height: 28,
       child: Center(
         child: SizedBox(
-          width: 32,
-          height: 6,
+          width: 36,
+          height: 4,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: const BorderRadius.all(Radius.circular(20)),
-              color: context.themeData.dividerColor.lighten(amount: 0.6),
+              borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+              color: context.colorScheme.outlineVariant,
             ),
           ),
         ),

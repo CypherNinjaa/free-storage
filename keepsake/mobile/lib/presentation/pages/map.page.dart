@@ -25,38 +25,39 @@ class MapPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = context.colorScheme;
+    final buttonStyle = IconButton.styleFrom(
+      padding: const EdgeInsets.all(10),
+      backgroundColor: scheme.surfaceContainerHigh,
+      foregroundColor: scheme.onSurface,
+      elevation: 2,
+      shadowColor: Colors.black26,
+    );
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
           MapView(initialLocation: initialLocation),
-          Positioned(
-            left: 20,
-            top: 70,
-            child: IconButton.filled(
-              color: Colors.white,
-              onPressed: () => ContextHelper(context).pop(),
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              style: IconButton.styleFrom(
-                padding: const EdgeInsets.all(8),
-                backgroundColor: Colors.indigo,
-                shadowColor: Colors.black26,
-                elevation: 4,
-              ),
-            ),
-          ),
-          Positioned(
-            right: 20,
-            top: 70,
-            child: IconButton.filled(
-              color: Colors.white,
-              onPressed: () => onSettingsPressed(context),
-              icon: const Icon(Icons.more_vert_rounded),
-              style: IconButton.styleFrom(
-                padding: const EdgeInsets.all(8),
-                backgroundColor: Colors.indigo,
-                shadowColor: Colors.black26,
-                elevation: 4,
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                    onPressed: () => ContextHelper(context).pop(),
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    style: buttonStyle,
+                  ),
+                  IconButton.filledTonal(
+                    tooltip: 'Map settings',
+                    onPressed: () => onSettingsPressed(context),
+                    icon: const Icon(Icons.tune_rounded),
+                    style: buttonStyle,
+                  ),
+                ],
               ),
             ),
           ),

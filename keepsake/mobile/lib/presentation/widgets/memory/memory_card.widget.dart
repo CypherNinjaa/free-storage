@@ -1,14 +1,12 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/domain/models/memory.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/presentation/widgets/asset_viewer/video_viewer.widget.dart';
 import 'package:immich_mobile/presentation/widgets/images/full_image.widget.dart';
-import 'package:immich_mobile/presentation/widgets/images/image_provider.dart';
 import 'package:immich_mobile/presentation/widgets/images/thumb_hash_provider.dart';
 import 'package:immich_mobile/presentation/widgets/memory/memory_title.widget.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class MemoryCard extends StatelessWidget {
   final RemoteAsset asset;
@@ -70,16 +68,22 @@ class MemoryCard extends StatelessWidget {
               );
             },
           ),
-          if (showTitle)
+          if (showTitle) ...[
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(decoration: BoxDecoration(gradient: ImmichColors.scrimEditorial)),
+              ),
+            ),
             Positioned(
               left: 18.0,
               right: 18.0,
               bottom: 18.0,
               child: MemoryTitle(
                 memory: memory,
-                style: context.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w500),
+                style: context.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -94,7 +98,6 @@ class _BlurredBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (asset.thumbHash != null) {
-      // Use a nice cheap blur hash image decoration
       return DecoratedBox(
         decoration: BoxDecoration(
           image: DecorationImage(
@@ -102,24 +105,18 @@ class _BlurredBackdrop extends StatelessWidget {
             fit: BoxFit.cover,
           ),
         ),
-        child: Container(color: Colors.black.withValues(alpha: 0.2)),
-      );
-    } else {
-      // Fall back to using a more expensive image filtered
-      // Since the ImmichImage is already precached, we can
-      // safely use that as the image provider
-      return ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: getFullImageProvider(asset, size: Size(context.width, context.height)),
-              fit: BoxFit.cover,
-            ),
-          ),
-          child: Container(color: Colors.black.withValues(alpha: 0.2)),
-        ),
+        child: Container(color: Colors.black.withValues(alpha: 0.25)),
       );
     }
+
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 1.1,
+          colors: [Color(0xFF1A191D), Color(0xFF000000)],
+        ),
+      ),
+    );
   }
 }

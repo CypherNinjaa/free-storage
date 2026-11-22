@@ -7,13 +7,13 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/extensions/duration_extensions.dart';
-import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/presentation/widgets/images/thumbnail.widget.dart';
 import 'package:immich_mobile/presentation/widgets/timeline/constants.dart';
 import 'package:immich_mobile/providers/asset_viewer/asset_viewer.provider.dart';
 import 'package:immich_mobile/providers/backup/asset_upload_progress.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/settings.provider.dart';
 import 'package:immich_mobile/providers/timeline/multiselect.provider.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class ThumbnailTile extends ConsumerStatefulWidget {
   const ThumbnailTile(
@@ -123,7 +123,7 @@ class _ThumbnailTileState extends ConsumerState<ThumbnailTile> with TickerProvid
     if (widget.lockSelection) {
       return context.colorScheme.surfaceContainerHighest;
     }
-    return context.isDarkTheme ? context.primaryColor.darken(amount: 0.4) : context.primaryColor.lighten(amount: 0.75);
+    return context.colorScheme.primaryContainer;
   }
 
   List<Widget> _overlays(BaseAsset asset, bool storageIndicator) {
@@ -138,25 +138,25 @@ class _ThumbnailTileState extends ConsumerState<ThumbnailTile> with TickerProvid
       if (typeIcons.isNotEmpty)
         Positioned(
           top: 6,
-          right: 10,
+          right: 6,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
-            spacing: 6,
+            spacing: 4,
             children: typeIcons,
           ),
         ),
       if (storageIndicator)
         switch (asset.storage) {
-          AssetState.local => const Positioned(right: 10, bottom: 6, child: _TileOverlayIcon(Icons.cloud_off_outlined)),
-          AssetState.remote => const Positioned(right: 10, bottom: 6, child: _TileOverlayIcon(Icons.cloud_outlined)),
+          AssetState.local => const Positioned(right: 6, bottom: 6, child: _TileOverlayIcon(Icons.cloud_off_outlined)),
+          AssetState.remote => const Positioned(right: 6, bottom: 6, child: _TileOverlayIcon(Icons.cloud_outlined)),
           AssetState.merged => const Positioned(
-            right: 10,
+            right: 6,
             bottom: 6,
             child: _TileOverlayIcon(Icons.cloud_done_outlined),
           ),
         },
-      if (asset.isFavorite) const Positioned(left: 10, bottom: 6, child: _TileOverlayIcon(Icons.favorite_rounded)),
+      if (asset.isFavorite) const Positioned(left: 6, bottom: 6, child: _TileOverlayIcon(Icons.favorite_rounded)),
     ];
   }
 }
@@ -207,7 +207,7 @@ class _RenderSelectionFrame extends RenderShiftedBox {
     _selected = selected;
     final controller = _controller ??= AnimationController(vsync: _vsync, value: selected ? 0 : 1)
       ..addListener(markNeedsLayout);
-    unawaited(controller.animateTo(selected ? 1 : 0, duration: Durations.short4, curve: Curves.decelerate));
+    unawaited(controller.animateTo(selected ? 1 : 0, duration: AmbryMotion.dStandard, curve: AmbryMotion.easeSpatial));
   }
 
   @override
@@ -245,7 +245,7 @@ class _RenderSelectionFrame extends RenderShiftedBox {
       needsCompositing,
       offset,
       content,
-      RRect.fromRectAndRadius(content, Radius.circular(15 * selection)),
+      RRect.fromRectAndRadius(content, Radius.circular(ImmichRadius.md * selection)),
       super.paint,
       oldLayer: layer as ClipRRectLayer?,
     );
@@ -327,24 +327,29 @@ class _VideoIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      spacing: 3,
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.end,
-      // CrossAxisAlignment.start looks more centered vertically than CrossAxisAlignment.center
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          duration.format(),
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            shadows: [Shadow(blurRadius: 5.0, color: Color.fromRGBO(0, 0, 0, 0.6))],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: const BoxDecoration(
+        color: Color(0x94000000),
+        borderRadius: BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+      ),
+      child: Row(
+        spacing: 2,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 13),
+          Text(
+            duration.format(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
           ),
-        ),
-        const _TileOverlayIcon(Icons.play_circle_outline_rounded),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -360,7 +365,7 @@ class _TileOverlayIcon extends StatelessWidget {
       icon,
       color: Colors.white,
       size: 16,
-      shadows: const [Shadow(blurRadius: 5.0, color: Color.fromRGBO(0, 0, 0, 0.6), offset: Offset.zero)],
+      shadows: const [Shadow(blurRadius: 6.0, color: Color.fromRGBO(0, 0, 0, 0.72), offset: Offset.zero)],
     );
   }
 }
@@ -398,7 +403,12 @@ class _UploadProgressOverlay extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 isError ? 'Error' : '$percentage%',
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
             ],
           ),

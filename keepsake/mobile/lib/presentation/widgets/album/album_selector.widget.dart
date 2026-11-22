@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +6,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/constants/enums.dart';
 import 'package:immich_mobile/domain/models/album/album.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
-import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/models/albums/album_search.model.dart';
 import 'package:immich_mobile/presentation/widgets/album/album_tile.dart';
@@ -24,7 +22,7 @@ import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/utils/album_filter.utils.dart';
 import 'package:immich_mobile/widgets/common/confirm_dialog.dart';
 import 'package:immich_mobile/widgets/common/immich_toast.dart';
-import 'package:immich_mobile/widgets/common/search_field.dart';
+import 'package:immich_ui/immich_ui.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 typedef AlbumSelectorCallback = void Function(RemoteAlbum album);
@@ -210,8 +208,22 @@ class _AlbumSelectorState extends ConsumerState<AlbumSelector> {
             currentIsReverse: sort.isReverse,
           ),
           isGrid
-              ? _AlbumGrid(albums: shownAlbums, userId: userId, onAlbumSelected: widget.onAlbumSelected)
-              : _AlbumList(albums: shownAlbums, userId: userId, onAlbumSelected: widget.onAlbumSelected),
+              ? _AlbumGrid(
+                  albums: shownAlbums,
+                  hasAnyAlbums: sortedAlbums.isNotEmpty,
+                  searchQuery: searchController.text,
+                  onClearSearch: clearSearch,
+                  userId: userId,
+                  onAlbumSelected: widget.onAlbumSelected,
+                )
+              : _AlbumList(
+                  albums: shownAlbums,
+                  hasAnyAlbums: sortedAlbums.isNotEmpty,
+                  searchQuery: searchController.text,
+                  onClearSearch: clearSearch,
+                  userId: userId,
+                  onAlbumSelected: widget.onAlbumSelected,
+                ),
         ],
       ),
     );
@@ -297,75 +309,80 @@ class _SortButtonState extends ConsumerState<_SortButton> {
       consumeOutsideTap: true,
       menuChildren: AlbumSortMode.values
           .map(
-            (sortMode) => MenuItemButton(
-              leadingIcon: albumSortOption == sortMode
-                  ? effectiveOrder == SortOrder.desc
-                        ? Icon(
-                            Icons.keyboard_arrow_down,
-                            color: albumSortOption == sortMode
-                                ? context.colorScheme.onPrimary
-                                : context.colorScheme.onSurface,
-                          )
-                        : Icon(
-                            Icons.keyboard_arrow_up_rounded,
-                            color: albumSortOption == sortMode
-                                ? context.colorScheme.onPrimary
-                                : context.colorScheme.onSurface,
-                          )
-                  : const Icon(Icons.abc, color: Colors.transparent),
-              onPressed: () => onMenuTapped(sortMode),
-              style: ButtonStyle(
-                padding: WidgetStateProperty.all(const EdgeInsets.fromLTRB(12, 12, 24, 12)),
-                backgroundColor: WidgetStateProperty.all(
-                  albumSortOption == sortMode ? context.colorScheme.primary : Colors.transparent,
+            (sortMode) {
+              final isSelected = albumSortOption == sortMode;
+              return MenuItemButton(
+                leadingIcon: isSelected
+                    ? Icon(
+                        effectiveOrder == SortOrder.desc
+                            ? Icons.keyboard_arrow_down_rounded
+                            : Icons.keyboard_arrow_up_rounded,
+                        color: context.colorScheme.onPrimaryContainer,
+                      )
+                    : const SizedBox(width: 24),
+                onPressed: () => onMenuTapped(sortMode),
+                style: ButtonStyle(
+                  padding: WidgetStateProperty.all(const EdgeInsets.fromLTRB(12, 12, 24, 12)),
+                  backgroundColor: WidgetStateProperty.all(
+                    isSelected ? context.colorScheme.primaryContainer : Colors.transparent,
+                  ),
+                  shape: WidgetStateProperty.all(
+                    const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(ImmichRadius.md))),
+                  ),
                 ),
-                shape: WidgetStateProperty.all(
-                  const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                child: Text(
+                  sortMode.label(context.t),
+                  style: context.textTheme.labelLarge?.copyWith(
+                    color: isSelected ? context.colorScheme.onPrimaryContainer : context.colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              child: Text(
-                sortMode.label(context.t),
-                style: context.textTheme.labelLarge?.copyWith(
-                  color: albumSortOption == sortMode
-                      ? context.colorScheme.onPrimary
-                      : context.colorScheme.onSurface.withAlpha(185),
-                ),
-              ),
-            ),
+              );
+            },
           )
           .toList(),
       builder: (context, controller, child) {
-        return GestureDetector(
-          onTap: () {
-            if (controller.isOpen) {
-              controller.close();
-            } else {
-              controller.open();
-            }
-          },
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 5),
-                child: effectiveOrder == SortOrder.desc
-                    ? Icon(Icons.keyboard_arrow_down, color: context.colorScheme.onSurface)
-                    : Icon(Icons.keyboard_arrow_up_rounded, color: context.colorScheme.onSurface),
-              ),
-              Text(
-                albumSortOption.label(context.t),
-                style: context.textTheme.labelLarge?.copyWith(color: context.colorScheme.onSurface.withAlpha(225)),
-              ),
-              isSorting
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.pill)),
+            onTap: () {
+              if (controller.isOpen) {
+                controller.close();
+              } else {
+                controller.open();
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    effectiveOrder == SortOrder.desc
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_up_rounded,
+                    size: 20,
+                    color: context.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    albumSortOption.label(context.t),
+                    style: context.textTheme.labelLarge?.copyWith(color: context.colorScheme.onSurface),
+                  ),
+                  if (isSorting) ...[
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: context.colorScheme.onSurface.withAlpha(225),
+                        color: context.colorScheme.onSurfaceVariant,
                       ),
-                    )
-                  : const SizedBox.shrink(),
-            ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -391,36 +408,14 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       sliver: SliverToBoxAdapter(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: context.colorScheme.onSurface.withAlpha(0), width: 0),
-            borderRadius: const BorderRadius.all(Radius.circular(24)),
-            gradient: LinearGradient(
-              colors: [
-                context.colorScheme.primary.withValues(alpha: 0.075),
-                context.colorScheme.primary.withValues(alpha: 0.09),
-                context.colorScheme.primary.withValues(alpha: 0.075),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              transform: const GradientRotation(0.5 * pi),
-            ),
-          ),
-          child: SearchField(
-            autofocus: false,
-            contentPadding: const EdgeInsets.all(16),
-            hintText: context.t.search_albums,
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: searchController.text.isNotEmpty
-                ? IconButton(icon: const Icon(Icons.clear_rounded), onPressed: onClearSearch)
-                : null,
-            controller: searchController,
-            onChanged: (_) => onSearch(searchController.text, filterMode),
-            focusNode: searchFocusNode,
-            onTapOutside: (_) => searchFocusNode.unfocus(),
-          ),
+        child: AmbrySearchBar(
+          controller: searchController,
+          focusNode: searchFocusNode,
+          hintText: context.t.search_albums,
+          onChanged: (value) => onSearch(value, filterMode),
+          onClear: onClearSearch,
         ),
       ),
     );
@@ -547,10 +542,11 @@ class _QuickSortAndViewMode extends StatelessWidget {
               initialIsReverse: currentIsReverse,
             ),
             IconButton(
+              tooltip: isGrid ? 'List view' : 'Grid view',
               icon: Icon(
                 isGrid ? Icons.view_list_outlined : Icons.grid_view_outlined,
-                size: 24,
-                color: context.colorScheme.onSurface,
+                size: 22,
+                color: context.colorScheme.onSurfaceVariant,
               ),
               onPressed: onToggleViewMode,
             ),
@@ -561,25 +557,74 @@ class _QuickSortAndViewMode extends StatelessWidget {
   }
 }
 
+class _AlbumEmptyState extends StatelessWidget {
+  final bool hasAnyAlbums;
+  final String searchQuery;
+  final VoidCallback onClearSearch;
+
+  const _AlbumEmptyState({
+    required this.hasAnyAlbums,
+    required this.searchQuery,
+    required this.onClearSearch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hasAnyAlbums && searchQuery.trim().isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: AmbryEmptyState(
+          icon: Icons.photo_album_outlined,
+          title: 'No albums yet',
+          subtitle: 'Organize your photos and videos into private albums stored in your vault.',
+          actionLabel: context.t.common_create_new_album,
+          onAction: () => context.pushRoute(const CreateAlbumRoute()),
+        ),
+      );
+    }
+
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: AmbryEmptyState(
+        icon: Icons.search_off_rounded,
+        title: context.t.album_search_not_found,
+        subtitle: searchQuery.trim().isNotEmpty ? 'No albums match "${searchQuery.trim()}"' : null,
+        actionLabel: 'Clear search',
+        onAction: onClearSearch,
+      ),
+    );
+  }
+}
+
 class _AlbumList extends ConsumerWidget {
-  const _AlbumList({required this.albums, required this.userId, required this.onAlbumSelected});
+  const _AlbumList({
+    required this.albums,
+    required this.hasAnyAlbums,
+    required this.searchQuery,
+    required this.onClearSearch,
+    required this.userId,
+    required this.onAlbumSelected,
+  });
 
   final List<RemoteAlbum> albums;
+  final bool hasAnyAlbums;
+  final String searchQuery;
+  final VoidCallback onClearSearch;
   final String? userId;
   final AlbumSelectorCallback onAlbumSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (albums.isEmpty) {
-      return SliverToBoxAdapter(
-        child: Center(
-          child: Padding(padding: const EdgeInsets.all(20.0), child: Text(context.t.album_search_not_found)),
-        ),
+      return _AlbumEmptyState(
+        hasAnyAlbums: hasAnyAlbums,
+        searchQuery: searchQuery,
+        onClearSearch: onClearSearch,
       );
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.only(left: 16.0, right: 16, bottom: 64),
+      padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 80.0),
       sliver: SliverList.builder(
         itemBuilder: (_, index) {
           final album = albums[index];
@@ -588,30 +633,33 @@ class _AlbumList extends ConsumerWidget {
           if (isOwner) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
-              child: Dismissible(
-                key: ValueKey(album.id),
-                background: Container(
-                  color: context.colorScheme.error,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 16),
-                  child: Icon(Icons.delete, color: context.colorScheme.onError),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.md)),
+                child: Dismissible(
+                  key: ValueKey(album.id),
+                  background: Container(
+                    color: context.colorScheme.error,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: Icon(Icons.delete_outline_rounded, color: context.colorScheme.onError),
+                  ),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) {
+                    return showDialog<bool>(
+                      context: context,
+                      builder: (context) => ConfirmDialog(
+                        onOk: () => true,
+                        title: context.t.delete_album,
+                        content: context.t.album_delete_confirmation(album: album.name),
+                        ok: context.t.delete,
+                      ),
+                    );
+                  },
+                  onDismissed: (direction) async {
+                    await ref.read(remoteAlbumProvider.notifier).deleteAlbum(album.id);
+                  },
+                  child: AlbumTile(album: album, isOwner: isOwner, onAlbumSelected: onAlbumSelected),
                 ),
-                direction: DismissDirection.endToStart,
-                confirmDismiss: (direction) {
-                  return showDialog<bool>(
-                    context: context,
-                    builder: (context) => ConfirmDialog(
-                      onOk: () => true,
-                      title: context.t.delete_album,
-                      content: context.t.album_delete_confirmation(album: album.name),
-                      ok: context.t.delete,
-                    ),
-                  );
-                },
-                onDismissed: (direction) async {
-                  await ref.read(remoteAlbumProvider.notifier).deleteAlbum(album.id);
-                },
-                child: AlbumTile(album: album, isOwner: isOwner, onAlbumSelected: onAlbumSelected),
               ),
             );
           } else {
@@ -628,30 +676,40 @@ class _AlbumList extends ConsumerWidget {
 }
 
 class _AlbumGrid extends StatelessWidget {
-  const _AlbumGrid({required this.albums, required this.userId, required this.onAlbumSelected});
+  const _AlbumGrid({
+    required this.albums,
+    required this.hasAnyAlbums,
+    required this.searchQuery,
+    required this.onClearSearch,
+    required this.userId,
+    required this.onAlbumSelected,
+  });
 
   final List<RemoteAlbum> albums;
+  final bool hasAnyAlbums;
+  final String searchQuery;
+  final VoidCallback onClearSearch;
   final String? userId;
   final AlbumSelectorCallback onAlbumSelected;
 
   @override
   Widget build(BuildContext context) {
     if (albums.isEmpty) {
-      return SliverToBoxAdapter(
-        child: Center(
-          child: Padding(padding: const EdgeInsets.all(20.0), child: Text(context.t.album_search_not_found)),
-        ),
+      return _AlbumEmptyState(
+        hasAnyAlbums: hasAnyAlbums,
+        searchQuery: searchQuery,
+        onClearSearch: onClearSearch,
       );
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 80.0),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 250,
-          mainAxisSpacing: 4,
-          crossAxisSpacing: 4,
-          childAspectRatio: .7,
+          maxCrossAxisExtent: 220,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.76,
         ),
         delegate: SliverChildBuilderDelegate((context, index) {
           final album = albums[index];
@@ -673,64 +731,62 @@ class _GridAlbumCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final albumThumbnailAsset = ref.watch(assetServiceProvider).getRemoteAsset(album.thumbnailAssetId ?? "");
 
-    return GestureDetector(
-      onTap: () => onAlbumSelected(album),
-      child: Card(
-        elevation: 0,
-        color: context.colorScheme.surfaceBright,
-        shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.all(Radius.circular(16)),
-          side: BorderSide(color: context.colorScheme.onSurface.withAlpha(25), width: 1),
-        ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+        onTap: () => onAlbumSelected(album),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: 2,
+            AspectRatio(
+              aspectRatio: 1,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FutureBuilder(
-                    future: albumThumbnailAsset,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData && snapshot.data != null) {
-                        return Thumbnail.remote(
-                          remoteId: album.thumbnailAssetId!,
-                          thumbhash: snapshot.data!.thumbHash ?? "",
-                        );
-                      }
-
-                      return ColoredBox(
-                        color: context.colorScheme.surfaceContainerHighest,
-                        child: const Icon(Icons.photo_album_rounded, size: 40, color: Colors.grey),
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+                child: FutureBuilder(
+                  future: albumThumbnailAsset,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data != null) {
+                      return Thumbnail.remote(
+                        remoteId: album.thumbnailAssetId!,
+                        thumbhash: snapshot.data!.thumbHash ?? "",
                       );
-                    },
-                  ),
+                    }
+
+                    return ColoredBox(
+                      color: context.colorScheme.surfaceContainer,
+                      child: Center(
+                        child: Icon(
+                          Icons.photo_album_outlined,
+                          size: 36,
+                          color: context.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
-            Expanded(
-              flex: 1,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    Text(
-                      album.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      '${context.t.items_count(count: album.assetCount)} • ${album.ownerId != userId ? context.t.shared_by_user(user: album.ownerName) : context.t.owned}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.textTheme.labelMedium?.copyWith(color: context.colorScheme.onSurfaceSecondary),
-                    ),
-                  ],
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                album.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.textTheme.titleSmall?.copyWith(color: context.colorScheme.onSurface),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                context.t.items_count(count: album.assetCount),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.textTheme.labelMedium?.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),

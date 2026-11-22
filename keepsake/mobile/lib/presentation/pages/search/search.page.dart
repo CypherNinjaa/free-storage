@@ -23,7 +23,6 @@ import 'package:immich_mobile/providers/search/search_input_focus.provider.dart'
 import 'package:immich_mobile/providers/server_info.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/widgets/common/feature_check.dart';
-import 'package:immich_mobile/widgets/common/search_field.dart';
 import 'package:immich_mobile/widgets/common/tag_picker.dart';
 import 'package:immich_mobile/widgets/search/search_filter/camera_picker.dart';
 import 'package:immich_mobile/widgets/search/search_filter/display_option_picker.dart';
@@ -34,6 +33,7 @@ import 'package:immich_mobile/widgets/search/search_filter/people_picker.dart';
 import 'package:immich_mobile/widgets/search/search_filter/search_filter_chip.dart';
 import 'package:immich_mobile/widgets/search/search_filter/search_filter_utils.dart';
 import 'package:immich_mobile/widgets/search/search_filter/star_rating_picker.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 
 const bool _serverless = true;
@@ -619,31 +619,14 @@ class SearchPage extends HookConsumerWidget {
             ),
           ),
         ],
-        title: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: context.colorScheme.onSurface.withAlpha(0), width: 0),
-            borderRadius: const BorderRadius.all(Radius.circular(24)),
-            gradient: LinearGradient(
-              colors: [
-                context.colorScheme.primary.withValues(alpha: 0.075),
-                context.colorScheme.primary.withValues(alpha: 0.09),
-                context.colorScheme.primary.withValues(alpha: 0.075),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: SearchField(
-            hintText: searchHintText,
-            key: const Key('search_text_field'),
-            controller: textSearchController,
-            contentPadding: filter.value.assetId != null ? const EdgeInsets.only(left: 24) : const EdgeInsets.all(8),
-            prefixIcon: filter.value.assetId != null
-                ? null
-                : Icon(getSearchPrefixIcon(), color: context.colorScheme.primary),
-            onSubmitted: handleTextSubmitted,
-            focusNode: ref.watch(searchInputFocusProvider),
-          ),
+        title: AmbrySearchBar(
+          key: const Key('search_text_field'),
+          controller: textSearchController,
+          focusNode: ref.watch(searchInputFocusProvider),
+          hintText: searchHintText,
+          prefixIcon: getSearchPrefixIcon(),
+          onSubmitted: handleTextSubmitted,
+          onClear: () => handleTextSubmitted(''),
         ),
       ),
       body: CustomScrollView(
@@ -828,21 +811,10 @@ class _SearchNoResults extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverFillRemaining(
       hasScrollBody: false,
-      child: Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.search_off_rounded, size: 72, color: context.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 24),
-            Text(
-              context.t.search_no_result,
-              textAlign: TextAlign.center,
-              style: context.textTheme.bodyLarge?.copyWith(color: context.colorScheme.onSurfaceVariant),
-            ),
-          ],
-        ),
+      child: AmbryEmptyState(
+        icon: Icons.search_off_rounded,
+        title: context.t.search_no_result,
+        subtitle: 'Try adjusting your keywords or clearing one of the active filters.',
       ),
     );
   }
@@ -853,107 +825,145 @@ class _SearchSuggestions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          const SizedBox(height: 40),
-          Center(
-            child: Image.asset(
-              context.isDarkTheme ? 'assets/polaroid-dark.png' : 'assets/polaroid-light.png',
-              height: 125,
+    final scheme = context.colorScheme;
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+      sliver: SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quick browse',
+              style: context.textTheme.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
-          ),
-          const SizedBox(height: 16),
-          Center(child: Text(context.t.search_page_search_photos_videos, style: context.textTheme.labelLarge)),
-          const SizedBox(height: 32),
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: _QuickLinkList()),
-        ],
+            const SizedBox(height: 12),
+            const _QuickLinkGrid(),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLow,
+                borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+                border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.shield_outlined, size: 18, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Search runs privately on this phone across filenames, descriptions, camera models, dates, and media types in your encrypted index.',
+                      style: context.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _QuickLinkList extends StatelessWidget {
-  const _QuickLinkList();
+class _QuickLinkGrid extends StatelessWidget {
+  const _QuickLinkGrid();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        border: Border.all(color: context.colorScheme.outline.withAlpha(10), width: 1),
-        gradient: LinearGradient(
-          colors: [
-            context.colorScheme.primary.withAlpha(10),
-            context.colorScheme.primary.withAlpha(15),
-            context.colorScheme.primary.withAlpha(20),
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _QuickLinkCard(
+                title: context.t.recently_taken,
+                icon: Icons.schedule_rounded,
+                onTap: () => context.pushRoute(const RecentlyTakenRoute()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _QuickLinkCard(
+                title: context.t.recently_added,
+                icon: Icons.cloud_upload_outlined,
+                onTap: () => context.pushRoute(const RecentlyAddedRoute()),
+              ),
+            ),
           ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
         ),
-      ),
-      child: ListView(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          _QuickLink(
-            title: context.t.recently_taken,
-            icon: Icons.schedule_outlined,
-            isTop: true,
-            onTap: () => context.pushRoute(const RecentlyTakenRoute()),
-          ),
-          _QuickLink(
-            title: context.t.recently_added,
-            icon: Icons.upload_outlined,
-            onTap: () => context.pushRoute(const RecentlyAddedRoute()),
-          ),
-          _QuickLink(
-            title: context.t.videos,
-            icon: Icons.play_circle_outline_rounded,
-            onTap: () => context.pushRoute(const VideoRoute()),
-          ),
-          _QuickLink(
-            title: context.t.favorites,
-            icon: Icons.favorite_border_rounded,
-            isBottom: true,
-            onTap: () => context.pushRoute(const FavoriteRoute()),
-          ),
-        ],
-      ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _QuickLinkCard(
+                title: context.t.videos,
+                icon: Icons.play_circle_outline_rounded,
+                onTap: () => context.pushRoute(const VideoRoute()),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _QuickLinkCard(
+                title: context.t.favorites,
+                icon: Icons.favorite_outline_rounded,
+                onTap: () => context.pushRoute(const FavoriteRoute()),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-class _QuickLink extends StatelessWidget {
+class _QuickLinkCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final VoidCallback onTap;
-  final bool isTop;
-  final bool isBottom;
 
-  const _QuickLink({
-    required this.title,
-    required this.icon,
-    required this.onTap,
-    this.isTop = false,
-    this.isBottom = false,
-  });
+  const _QuickLinkCard({required this.title, required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.only(
-      topLeft: Radius.circular(isTop ? 20 : 0),
-      topRight: Radius.circular(isTop ? 20 : 0),
-      bottomLeft: Radius.circular(isBottom ? 20 : 0),
-      bottomRight: Radius.circular(isBottom ? 20 : 0),
-    );
+    final scheme = context.colorScheme;
 
-    return ListTile(
-      shape: RoundedRectangleBorder(borderRadius: borderRadius),
-      leading: Icon(icon, size: 26),
-      title: Text(title, style: context.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500)),
-      onTap: onTap,
+    return Material(
+      color: scheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.lg)),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.md)),
+                ),
+                child: Icon(icon, size: 20, color: scheme.primary),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.textTheme.titleSmall?.copyWith(color: scheme.onSurface),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -9,12 +9,20 @@ class MultiSelectStatusButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectCount = ref.watch(multiSelectProvider.select((s) => s.selectedAssets.length));
-    return ElevatedButton.icon(
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        elevation: 2,
+      ),
       onPressed: () => ref.read(multiSelectProvider.notifier).reset(),
-      icon: Icon(Icons.close_rounded, color: context.colorScheme.onPrimary),
+      icon: Icon(Icons.close_rounded, size: 20, color: context.colorScheme.onPrimary),
       label: Text(
         selectCount.toString(),
-        style: context.textTheme.titleMedium?.copyWith(height: 2.5, color: context.colorScheme.onPrimary),
+        style: context.textTheme.titleMedium?.copyWith(
+          color: context.colorScheme.onPrimary,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
       ),
     );
   }

@@ -30,6 +30,7 @@ import 'package:immich_mobile/utils/debounce.dart';
 import 'package:immich_mobile/widgets/common/immich_sliver_app_bar.dart';
 import 'package:immich_mobile/widgets/common/mesmerizing_sliver_app_bar.dart';
 import 'package:immich_mobile/widgets/common/selection_sliver_app_bar.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class Timeline extends ConsumerWidget {
   const Timeline({
@@ -465,7 +466,7 @@ class _SliverTimelineState extends ConsumerState<_SliverTimeline> with WidgetsBi
                           timelineHeight: maxHeight,
                           topPadding: topPadding,
                           bottomPadding: scrubberBottomPadding,
-                          monthSegmentSnappingOffset: widget.topSliverWidgetHeight ?? 0 + appBarExpandedHeight,
+                          monthSegmentSnappingOffset: (widget.topSliverWidgetHeight ?? 0) + appBarExpandedHeight,
                           hasAppBar: widget.appBar != null,
                           child: grid,
                         );
@@ -473,24 +474,26 @@ class _SliverTimelineState extends ConsumerState<_SliverTimeline> with WidgetsBi
                         timeline = grid;
                       }
 
-                      return Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          NotificationListener<ScrollNotification>(
-                            onNotification: _onScrollVelocityNotification,
-                            child: timeline,
-                          ),
-                          if (isBottomWidgetVisible)
-                            Positioned(
-                              top: MediaQuery.paddingOf(context).top,
-                              left: 25,
-                              child: const SizedBox(
-                                height: kToolbarHeight,
-                                child: Center(child: MultiSelectStatusButton()),
-                              ),
+                      return AmbryShimmerScope(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            NotificationListener<ScrollNotification>(
+                              onNotification: _onScrollVelocityNotification,
+                              child: timeline,
                             ),
-                          if (isBottomWidgetVisible) widget.bottomSheet!,
-                        ],
+                            if (isMultiSelectStatusVisible)
+                              PositionedDirectional(
+                                top: MediaQuery.paddingOf(context).top,
+                                start: 16,
+                                child: const SizedBox(
+                                  height: kToolbarHeight,
+                                  child: Center(child: MultiSelectStatusButton()),
+                                ),
+                              ),
+                            if (isBottomWidgetVisible) widget.bottomSheet!,
+                          ],
+                        ),
                       );
                     },
                   ),

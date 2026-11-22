@@ -60,7 +60,7 @@ class ViewerBottomBar extends ConsumerWidget {
     ];
 
     return AnimatedSwitcher(
-      duration: Durations.short4,
+      duration: AmbryMotion.durationOf(context, AmbryMotion.dStandard),
       child: showingDetails
           ? const SizedBox.shrink()
           : Theme(
@@ -75,21 +75,14 @@ class ViewerBottomBar extends ConsumerWidget {
                   const Positioned.fill(
                     child: IgnorePointer(
                       child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [Colors.black45, Colors.black12, Colors.transparent],
-                            stops: [0.0, 0.7, 1.0],
-                          ),
-                        ),
+                        decoration: BoxDecoration(gradient: ImmichColors.scrimViewerBottom),
                       ),
                     ),
                   ),
                   SafeArea(
                     top: false,
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 16),
+                      padding: const EdgeInsets.only(top: 20, bottom: 4),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [

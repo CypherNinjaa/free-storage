@@ -10,6 +10,7 @@ import 'package:immich_mobile/presentation/widgets/memory/memory_title.widget.da
 import 'package:immich_mobile/providers/haptic_feedback.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/memory.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class MemoryLane extends ConsumerWidget {
   const MemoryLane({super.key});
@@ -31,18 +32,19 @@ class MemoryLane extends ConsumerWidget {
     }
 
     return SizedBox(
-      height: 200,
-      child: ListView.builder(
+      height: 204,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemExtent: 170.0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         itemCount: memories.length,
-        itemBuilder: (context, index) => Padding(
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, index) => SizedBox(
           key: Key(memories[index].id),
-          padding: const EdgeInsets.all(4),
+          width: 152,
           child: Material(
             color: Colors.black,
-            elevation: 2,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
+            elevation: 0,
+            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(ImmichRadius.lg))),
             clipBehavior: Clip.antiAlias,
             child: Stack(
               fit: StackFit.expand,
@@ -51,7 +53,7 @@ class MemoryLane extends ConsumerWidget {
                 Material(
                   type: MaterialType.transparency,
                   child: InkWell(
-                    overlayColor: WidgetStateProperty.all(Colors.white.withValues(alpha: 0.1)),
+                    overlayColor: WidgetStateProperty.all(Colors.white.withValues(alpha: 0.12)),
                     onTap: () => handleTap(index),
                   ),
                 ),
@@ -71,24 +73,33 @@ class MemoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cover = memory.assets.isNotEmpty ? memory.assets.first : null;
     return Stack(
       fit: StackFit.expand,
       children: [
-        ColorFiltered(
-          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.2), BlendMode.darken),
-          child: Thumbnail.remote(
-            remoteId: memory.assets[0].id,
-            thumbhash: memory.assets[0].thumbHash ?? "",
+        if (cover != null)
+          Thumbnail.remote(
+            remoteId: cover.id,
+            thumbhash: cover.thumbHash ?? "",
             fit: BoxFit.cover,
+          ),
+        const IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(gradient: ImmichColors.scrimEditorial),
           ),
         ),
         Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16,
+          left: 12,
+          right: 12,
+          bottom: 12,
           child: MemoryTitle(
             memory: memory,
-            style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 15),
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              fontSize: 14,
+              height: 1.25,
+            ),
           ),
         ),
       ],

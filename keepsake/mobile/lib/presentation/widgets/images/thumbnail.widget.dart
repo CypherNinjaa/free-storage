@@ -9,6 +9,7 @@ import 'package:immich_mobile/presentation/widgets/images/image_provider.dart';
 import 'package:immich_mobile/presentation/widgets/images/remote_image_provider.dart';
 import 'package:immich_mobile/presentation/widgets/images/thumb_hash_provider.dart';
 import 'package:immich_mobile/presentation/widgets/timeline/constants.dart';
+import 'package:immich_ui/immich_ui.dart';
 import 'package:logging/logging.dart';
 
 final log = Logger('ThumbnailWidget');
@@ -159,6 +160,10 @@ class _ThumbnailState extends State<Thumbnail> with SingleTickerProviderStateMix
     super.didUpdateWidget(oldWidget);
 
     if (widget.imageProvider != oldWidget.imageProvider) {
+      if (widget.imageProvider == null && _providerImage != null) {
+        _providerImage?.dispose();
+        _providerImage = null;
+      }
       _loadFromImageProvider();
     }
 
@@ -264,7 +269,7 @@ class _ThumbnailRenderBox extends RenderBox {
 
   double get _fadeValue {
     final fade = _fade;
-    return fade == null ? 1 : Curves.easeOut.transform(fade.value);
+    return fade == null ? 1 : AmbryMotion.easeEffects.transform(fade.value);
   }
 
   void show(ui.Image? image, {required bool doFadeIn}) {
@@ -278,7 +283,7 @@ class _ThumbnailRenderBox extends RenderBox {
     _image = image?.clone();
     if (doFadeIn) {
       _previousImage = shown;
-      final fade = _fade ??= AnimationController(vsync: _vsync, duration: const Duration(milliseconds: 100))
+      final fade = _fade ??= AnimationController(vsync: _vsync, duration: AmbryMotion.dFast)
         ..addListener(markNeedsPaint)
         ..addStatusListener(_onFadeStatusChanged);
       if (!fade.isAnimating) {

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/album/album.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
-import 'package:immich_mobile/extensions/theme_extensions.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/pages/common/large_leading_tile.dart';
 import 'package:immich_mobile/presentation/widgets/images/thumbnail.widget.dart';
 import 'package:immich_mobile/providers/infrastructure/asset.provider.dart';
+import 'package:immich_ui/immich_ui.dart';
 
 class AlbumTile extends ConsumerWidget {
   const AlbumTile({super.key, required this.album, required this.isOwner, this.onAlbumSelected});
@@ -24,24 +24,28 @@ class AlbumTile extends ConsumerWidget {
         album.name,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: context.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        style: context.textTheme.titleSmall?.copyWith(color: context.colorScheme.onSurface),
       ),
       subtitle: Text(
-        '${context.t.items_count(count: album.assetCount)} • ${isOwner ? context.t.owned : context.t.shared_by_user(user: album.ownerName)}',
+        context.t.items_count(count: album.assetCount),
         overflow: TextOverflow.ellipsis,
-        style: context.textTheme.bodyMedium?.copyWith(color: context.colorScheme.onSurfaceSecondary),
+        style: context.textTheme.bodyMedium?.copyWith(
+          color: context.colorScheme.onSurfaceVariant,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
       ),
+      trailing: Icon(Icons.chevron_right_rounded, color: context.colorScheme.onSurfaceVariant),
       onTap: () => onAlbumSelected?.call(album),
-      leadingPadding: const EdgeInsets.only(right: 16),
+      leadingPadding: const EdgeInsets.only(right: 14),
       leading: FutureBuilder(
         future: albumThumbnailAsset,
         builder: (context, snapshot) {
           return snapshot.hasData && snapshot.data != null
               ? ClipRRect(
-                  borderRadius: const BorderRadius.all(Radius.circular(15)),
+                  borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.md)),
                   child: SizedBox(
-                    width: 80,
-                    height: 80,
+                    width: 64,
+                    height: 64,
                     child: Thumbnail.remote(
                       remoteId: album.thumbnailAssetId!,
                       thumbhash: snapshot.data!.thumbHash ?? "",
@@ -49,15 +53,18 @@ class AlbumTile extends ConsumerWidget {
                   ),
                 )
               : SizedBox(
-                  width: 80,
-                  height: 80,
+                  width: 64,
+                  height: 64,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: context.colorScheme.surfaceContainer,
-                      borderRadius: const BorderRadius.all(Radius.circular(16)),
-                      border: Border.all(color: context.colorScheme.outline.withAlpha(50), width: 1),
+                      borderRadius: const BorderRadius.all(Radius.circular(ImmichRadius.md)),
                     ),
-                    child: const Icon(Icons.photo_album_rounded, size: 24, color: Colors.grey),
+                    child: Icon(
+                      Icons.photo_album_outlined,
+                      size: 24,
+                      color: context.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 );
         },
