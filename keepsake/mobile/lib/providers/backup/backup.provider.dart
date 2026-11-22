@@ -7,7 +7,9 @@ import 'package:immich_mobile/constants/constants.dart';
 import 'package:immich_mobile/domain/models/album/local_album.model.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/extensions/platform_extensions.dart';
+import 'package:immich_mobile/providers/background_sync.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/db.provider.dart';
+import 'package:immich_mobile/providers/infrastructure/settings.provider.dart';
 import 'package:immich_mobile/providers/user.provider.dart';
 import 'package:immich_mobile/services/background_upload.service.dart';
 import 'package:immich_mobile/services/foreground_upload.service.dart';
@@ -49,31 +51,45 @@ abstract class BackupState with _$BackupState {
   int get errorCount => uploadItems.values.where((item) => item.isFailed == true).length;
 }
 
-final backupProvider = StateNotifierProvider<BackupNotifier, BackupState>((ref) {
-  return BackupNotifier(
-    ref.watch(foregroundUploadServiceProvider),
-    ref.watch(backgroundUploadServiceProvider),
-    UploadSpeedManager(),
-  );
-});
+final StateNotifierProvider<BackupNotifier, BackupState> backupProvider =
+    StateNotifierProvider<BackupNotifier, BackupState>((ref) {
+      return BackupNotifier(
+        ref.watch(foregroundUploadServiceProvider),
+        ref.watch(backgroundUploadServiceProvider),
+        UploadSpeedManager(),
+        // Immich adds new uploads to synced albums when its server announces them over the websocket. Ambry has no
+        // server, so the albums are brought up to date when a foreground backup run ends.
+        onRunFinished: () async {
+          if (ref.read(appConfigProvider).backup.syncAlbums) {
+            await ref.read(backgroundSyncProvider).syncLinkedAlbum();
+          }
+        },
+      );
+    });
 
 class BackupNotifier extends StateNotifier<BackupState> {
-  BackupNotifier(this._foregroundUploadService, this._backgroundUploadService, this._uploadSpeedManager)
-    : super(
-        const BackupState(
-          totalCount: 0,
-          backupCount: 0,
-          remainderCount: 0,
-          processingCount: 0,
-          isSyncing: false,
-          uploadItems: {},
-          error: BackupError.none,
-        ),
-      );
+  BackupNotifier(
+    this._foregroundUploadService,
+    this._backgroundUploadService,
+    this._uploadSpeedManager, {
+    Future<void> Function()? onRunFinished,
+  }) : _onRunFinished = onRunFinished,
+       super(
+         const BackupState(
+           totalCount: 0,
+           backupCount: 0,
+           remainderCount: 0,
+           processingCount: 0,
+           isSyncing: false,
+           uploadItems: {},
+           error: BackupError.none,
+         ),
+       );
 
   final ForegroundUploadService _foregroundUploadService;
   final BackgroundUploadService _backgroundUploadService;
   final UploadSpeedManager _uploadSpeedManager;
+  final Future<void> Function()? _onRunFinished;
   Completer<void>? _cancelToken;
 
   final _logger = Logger("BackupNotifier");
@@ -144,7 +160,7 @@ class BackupNotifier extends StateNotifier<BackupState> {
     // otherwise a resume counts duplicate successes against the old baseline (#26215).
     await getBackupStatus(userId);
 
-    return _foregroundUploadService.uploadCandidates(
+    await _foregroundUploadService.uploadCandidates(
       userId,
       cancelToken,
       callbacks: UploadCallbacks(
@@ -154,6 +170,13 @@ class BackupNotifier extends StateNotifier<BackupState> {
         onICloudProgress: _handleICloudProgress,
       ),
     );
+    if (!cancelToken.isCompleted) {
+      try {
+        await _onRunFinished?.call();
+      } catch (error, stackTrace) {
+        _logger.warning('Post-backup album sync failed', error, stackTrace);
+      }
+    }
   }
 
   void stopForegroundBackup({required String reason}) {

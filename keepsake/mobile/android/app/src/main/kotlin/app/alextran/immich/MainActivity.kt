@@ -21,6 +21,7 @@ import app.alextran.immich.images.RemoteImagesImpl
 import app.alextran.immich.keepsake.KeepsakeLibraryApi
 import app.alextran.immich.keepsake.KeepsakeLibraryApiImpl
 import app.alextran.immich.keepsake.KeepsakeServices
+import app.alextran.immich.keepsake.IndexBackupWorker
 import app.alextran.immich.keepsake.KeepsakeTelegramApi
 import app.alextran.immich.keepsake.KeepsakeTelegramApiImpl
 import app.alextran.immich.keepsake.KeepsakeVaultApi
@@ -75,6 +76,8 @@ class MainActivity : FlutterFragmentActivity() {
       KeepsakeTelegramApi.setUp(messenger, KeepsakeTelegramApiImpl(keepsakeServices))
       KeepsakeVaultApi.setUp(messenger, KeepsakeVaultApiImpl(keepsakeServices))
       KeepsakeLibraryApi.setUp(messenger, KeepsakeLibraryApiImpl(keepsakeServices))
+      // Daily backup of the library index (no-op until a vault exists; keeps an existing schedule).
+      IndexBackupWorker.schedule(ctx)
 
       flutterEngine.plugins.add(ViewIntentPlugin())
       flutterEngine.plugins.add(backgroundEngineLockImpl)

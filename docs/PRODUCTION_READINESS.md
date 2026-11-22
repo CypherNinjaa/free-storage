@@ -64,7 +64,17 @@ All tests used synthetic images and test-pattern videos, never personal photos. 
 | New video added while the app is closed → Android launches Ambry's job 30 s later | ✅ |
 | Upload in the background on this phone (Realme, ColorOS) with default battery settings | ❌ **ColorOS froze the app 11 s after the job launched it**, before the upload started (`OplusHansManager: freeze … app.keepsake.photos.debug`). The upload then happens the next time the app is opened |
 | What fixes it | The user allows background activity (App info → Battery → Allow background activity / Unrestricted). The Backup screen now shows a clear warning card with an "Open app settings" button whenever this is off |
-| Background run with background activity allowed | ⏳ not run: changing the phone's battery settings is your call. Re-test after allowing it |
+| Background run with background activity allowed | ✅ after you allowed it: new image added with Ambry in the background → media watcher at +30 s → background worker uploaded it (encrypted) at +40 s, "Background backup finished, 0 uploads failed", 6 s; the worker also added it to its synced album. No more ColorOS freezes |
+
+### Added on 2026-11-22 (second pass)
+
+| Check | Result |
+|---|---|
+| **Daily library-index backup**: a WorkManager job runs once a day (needs network and battery not low); backs the index up whenever it changed and the last backup is over 6 h old, publishes the vault record if missing and empties 30-day-old trash | ✅ scheduled on install; forced run logged `Daily index backup not due` (a backup had run 33 min earlier); account sheet shows "Library index backed up … · up to date" |
+| **One phone per vault**: a sealed "active phone" record in the System channel; uploads, index backups and permanent deletes check it (uploads reuse a check for 10 min, index backups always re-check) | ✅ simulated a second phone by changing this install's id: the account sheet showed "Backups paused on this phone … active on realme RMX3785", a forced index backup wrote nothing, "Use this phone" took the vault back and backups worked again |
+| **Free up space** (all four steps) on a synthetic image dated 2001 with the 3-year cutoff (none of your photos are older than Aug 2026) | ✅ scan found exactly 1 item (25.9 KiB), preview showed only the test image, confirmation and Android's own "move to bin" prompt named the file; it went to Android's bin (recoverable 30 days) and stayed in the vault |
+| **Settings**: Advanced, Asset Viewer, Backup, Free Up Space, Language, Notifications, Preferences, Photo Grid, Sync Status | ✅ every page opens; toggles save (Tap to navigate, Group by); Sync Local / Sync Remote / Hash / Clear cache / Clear image cache run without errors. Not run: Reset database (signs you out, needs your passphrase), Export database, changing the language |
+| **Sync albums** (Backup settings) | ✅ "Organize into albums" created the album "Camera" with all 573 Camera photos |
 
 ### Release build
 
@@ -92,24 +102,29 @@ All tests used synthetic images and test-pattern videos, never personal photos. 
 | 11 | Network: plain HTTP allowed to any host, user-installed CAs trusted | Wider attack surface than needed | Plain HTTP only to `127.0.0.1`/`localhost` (the app's own media server); only system CAs |
 | 12 | **Release build failed** at the R8 step ("optimized resource shrinking requires non-final IDs") | No production build possible | `android.nonFinalResIds=true`; explicit R8 keep rule for the TDLib JNI bridge |
 | 13 | App version was Immich's `3.4.0-rc.0`, shown as "Ambry v3.4.0" | Confusing | `1.0.0+1` |
+| 14 | Synced albums never got new photos while the app was open | Immich adds them when its **server** sends an "upload ready" websocket message; Ambry has none | Albums are brought up to date at the end of every in-app backup run |
+| 15 | The app still asked the Immich server for the user profile (404 in the log) and offered a profile-picture upload | Errors in the log; a broken button | Profile read from the phone; avatar upload hidden |
+| 16 | Settings offered server-only options: custom proxy headers, SSL client certificate, "Force original video" | Did nothing | Hidden |
+| 17 | Free up space and delete messages said "server" ("Your copies on the server remain safe") | Wrong | "your Telegram vault" / "Ambry's trash" |
+| 18 | Empty albums appeared for every folder picked for backup | Expected with **Sync albums** on (it is on in your app); empty ones fill on the next backup run | Behaviour kept; two empty test albums deleted |
 
 ## 5. Blockers before a public release
 
 | # | Blocker | Why it matters | What to do |
 |---|---|---|---|
 | 1 | **Final application ID and signing key** | The ID (`app.keepsake.photos` today) and the signing key can never change after the first Play upload | Pick the ID (for example `app.ambry.photos` or a domain you own), create an upload key, enrol in Play App Signing. Changing the ID on your phone makes a new app: sign in to Telegram again and restore the vault (this doubles as the new-phone restore test) |
-| 2 | **AGPL-3.0 obligations** | Immich's mobile code is AGPL-3.0. Distributing Ambry means offering its complete source under the same licence, keeping the licence and copyright notices, and saying it is a modified Immich | Publish the repository (or offer the source to every user), add a "Source code" link and "Based on Immich" credit in About, keep `LICENSE` |
+| 2 | **AGPL-3.0 obligations** | Immich's mobile code is AGPL-3.0. Distributing Ambry means offering its complete source under the same licence | ✅ Done in code: `keepsake/LICENSE` (AGPL-3.0 text), About shows "modified version of the Immich mobile app" and a **Source code** link to `github.com/CypherNinjaa/free-storage`. **Still to do:** make that repository public before release |
 | 3 | **Telegram API terms** | Ambry uses your own api_id/api_hash; users sign in with their own (dedicated) account | Register the production app at my.telegram.org under the Ambry name, follow the API terms (no "Telegram" in the app name, no impersonation, privacy policy), and tell users plainly to use a dedicated account. Very large uploads can hit flood limits; Ambry already waits and retries |
-| 4 | **Privacy policy + Play Data safety form** | Required for apps that read photos, location metadata and a phone number | State that photos go only to the user's own Telegram, nothing to a developer server, encryption is on by default |
+| 4 | **Privacy policy + Play Data safety form** | Required for apps that read photos, location metadata and a phone number | ✅ Published: <https://github.com/CypherNinjaa/free-storage/blob/main/docs/PRIVACY_POLICY.md> (also linked in the app: account sheet → Privacy). Data safety answers: [PLAY_RELEASE.md](PLAY_RELEASE.md) §3 |
 | 5 | **New-phone restore never run on a device** | Restore is the whole safety net | Run it once end to end (see blocker 1) before inviting testers |
-| 6 | **One phone per vault** | Two phones using the same vault at once each keep their own index; their snapshots can overwrite each other's albums and edits | Add a single-writer lock (a pinned "active device" record in the System channel) or block sign-in on a second phone |
+| 6 | **One phone per vault** | Two phones using the same vault at once could overwrite each other's albums and edits | ✅ Done: only the active phone writes; a restore makes the new phone active; the old phone shows "Backups paused" with "Use this phone" |
 | 7 | **Files over 1.95 GiB are refused** | Long 4K videos will not back up | Split large files into parts (Telegram's limit is 2 GB per file, 4 GB with Premium) |
-| 8 | **Background backup on Realme/ColorOS (and similar)** | See §3: the OS freezes the app in the background unless "Allow background activity" is on | The warning card is in place; also show it once right after onboarding, and re-test a background upload with the setting allowed |
-| 9 | **Publish as an App Bundle** | The universal APK is 179 MB because it carries TDLib for three CPU types | `flutter build appbundle`; Play then delivers only the phone's own CPU type |
+| 8 | **Background backup on Realme/ColorOS (and similar)** | The OS freezes the app in the background unless "Allow background activity" is on | ✅ Verified working once allowed; the Backup screen warns with an "Open app settings" button while it is off |
+| 9 | **Publish as an App Bundle** | The universal APK is 179 MB because it carries TDLib for three CPU types | `flutter build appbundle --release` (see [PLAY_RELEASE.md](PLAY_RELEASE.md)); Play then delivers only the phone's own CPU type |
 
 ## 5a. Test data left on your phone and in your vault
 
-Synthetic files created by the tests, all safe to delete: `keepsake_test_1.png`, `keepsake_test_2.png`, `ambry_test_video.mp4`, `ambry_bg_test.mp4`, `ambry_plain_test.png` (vault); the album "Ambry Test album"; on the phone `Pictures/KeepsakeTest/`, `DCIM/Ambry/ambry_plain_test.png` and `DCIM/Immich/keepsake_test_2.png`. Backup is set back to the Camera album only, and encryption is on.
+Synthetic files created by the tests, all safe to delete: `keepsake_test_1.png`, `keepsake_test_2.png`, `ambry_test_video.mp4`, `ambry_bg_test.mp4`, `ambry_plain_test.png`, `ambry_cleanup_test.jpg` (vault); the album "Ambry Test album"; on the phone `Pictures/KeepsakeTest/`, `Pictures/AmbryCleanupTest/` (its file is in Android's bin), `DCIM/Ambry/ambry_plain_test.png` and `DCIM/Immich/keepsake_test_2.png`. Backup is set back to the Camera album only, and encryption is on. The album "Camera" (573 photos) comes from your **Sync albums** setting, which is on.
 
 ## 6. Feature gaps (fine for a beta)
 

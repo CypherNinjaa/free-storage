@@ -495,7 +495,7 @@ class ForegroundUploadService {
       _logger.warning('Telegram backup of ${asset.name} failed: ${error.code} ${error.message}');
       callbacks.onError?.call(localId, error.message ?? error.code);
       // Errors that will repeat for every remaining asset stop the run instead of failing each one.
-      if (const {'VAULT_LOCKED', 'TELEGRAM_NOT_CONNECTED', 'TELEGRAM_401'}.contains(error.code)) {
+      if (const {'VAULT_LOCKED', 'TELEGRAM_NOT_CONNECTED', 'TELEGRAM_401', 'VAULT_IN_USE_ELSEWHERE'}.contains(error.code)) {
         shouldAbortUpload = true;
       }
     }

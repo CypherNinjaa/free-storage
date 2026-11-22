@@ -29,6 +29,10 @@ class UserService {
   }
 
   Future<UserDto?> refreshMyUser() async {
+    // Serverless Ambry: the vault user lives only on this phone; there is no server copy to refresh from.
+    if (_storeService.tryGet(StoreKey.keepsakeVaultVersion) == 1) {
+      return _storeService.tryGet(StoreKey.currentUser);
+    }
     final user = await _userApiRepository.getMyUser();
     if (user == null) {
       return null;

@@ -28,6 +28,7 @@ private fun Throwable.toFlutterError(): FlutterError = when (this) {
   is TdException -> FlutterError("TELEGRAM_$code", message)
   is TimeoutCancellationException -> FlutterError("TIMEOUT", "Telegram did not respond in time")
   is TooLargeException -> FlutterError("TOO_LARGE", message)
+  is VaultInUseException -> FlutterError("VAULT_IN_USE_ELSEWHERE", message)
   is java.io.IOException -> FlutterError("IO_ERROR", message ?: javaClass.simpleName)
   else -> FlutterError("KEEPSAKE_ERROR", message ?: javaClass.simpleName)
 }
@@ -260,6 +261,33 @@ class KeepsakeLibraryApiImpl(private val services: KeepsakeServices) : KeepsakeL
       nextSeq = changes.nextSeq,
     )
   }
+
+  override fun getActiveDevice(callback: (Result<ActiveDeviceStatus>) -> Unit) = respond(callback) {
+    services.requireTelegramReady()
+    library.activeDevice().toStatus()
+  }
+
+  override fun claimVault(callback: (Result<ActiveDeviceStatus>) -> Unit) = respond(callback) {
+    services.requireTelegramReady()
+    library.claimVault().toStatus()
+  }
+
+  override fun getIndexBackupStatus(callback: (Result<IndexBackupStatus>) -> Unit) = respond(callback) {
+    val state = library.indexBackupStatus()
+    IndexBackupStatus(
+      lastSnapshotAtMs = state.lastSnapshotAtMs,
+      pendingChanges = state.pendingChanges,
+      assetCount = state.assetCount,
+      albumCount = state.albumCount,
+    )
+  }
+
+  /** No claim yet means nobody else writes to the vault: this phone claims it on its next write. */
+  private fun DeviceClaim?.toStatus() = ActiveDeviceStatus(
+    isThisDevice = this == null || deviceId == library.deviceId,
+    deviceName = this?.deviceName,
+    claimedAtMs = this?.claimedAtMs,
+  )
 
   private fun AlbumRecord.toLibraryAlbum() = LibraryAlbum(
     id = id,

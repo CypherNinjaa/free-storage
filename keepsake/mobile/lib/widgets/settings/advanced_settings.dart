@@ -15,8 +15,6 @@ import 'package:immich_mobile/repositories/permission.repository.dart';
 import 'package:immich_mobile/services/app_settings.service.dart';
 import 'package:immich_mobile/utils/bytes_units.dart';
 import 'package:immich_mobile/utils/hooks/app_settings_update_hook.dart';
-import 'package:immich_mobile/widgets/settings/custom_proxy_headers_settings/custom_proxy_headers_settings.dart';
-import 'package:immich_mobile/widgets/settings/ssl_client_cert_settings.dart';
 import 'package:immich_ui/immich_ui.dart';
 import 'package:logging/logging.dart';
 
@@ -114,8 +112,7 @@ class AdvancedSettings extends HookConsumerWidget {
         title: context.t.advanced_settings_prefer_remote_title,
         subtitle: context.t.advanced_settings_prefer_remote_subtitle,
       ),
-      const CustomProxyHeaderSettings(),
-      const SslClientCertSettings(),
+      // Proxy headers and client certificates only apply to HTTP calls to an Immich server, which Ambry does not use.
       SettingsSwitchListTile(
         valueNotifier: readonlyModeEnabled,
         title: context.t.advanced_settings_readonly_mode_title,

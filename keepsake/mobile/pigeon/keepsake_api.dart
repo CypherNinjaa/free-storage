@@ -176,6 +176,26 @@ class AlbumChanges {
   int nextSeq;
 }
 
+/// Which phone currently writes to the vault (only one may, so two phones never overwrite each other).
+class ActiveDeviceStatus {
+  ActiveDeviceStatus({required this.isThisDevice, this.deviceName, this.claimedAtMs});
+
+  bool isThisDevice;
+  String? deviceName;
+  int? claimedAtMs;
+}
+
+class IndexBackupStatus {
+  IndexBackupStatus({this.lastSnapshotAtMs, required this.pendingChanges, required this.assetCount, required this.albumCount});
+
+  int? lastSnapshotAtMs;
+
+  /// Index changes made since the last snapshot; 0 means the backup is up to date.
+  int pendingChanges;
+  int assetCount;
+  int albumCount;
+}
+
 class DiscoveredVault {
   DiscoveredVault({required this.vaultName, required this.libraryChatId, required this.systemChatId});
 
@@ -320,4 +340,14 @@ abstract class KeepsakeLibraryApi {
   /// Album changes with a sequence number in (sinceSeq, untilSeq].
   @async
   AlbumChanges albumChangesSince(int sinceSeq, int untilSeq);
+
+  @async
+  ActiveDeviceStatus getActiveDevice();
+
+  /// Makes this phone the one that writes to the vault.
+  @async
+  ActiveDeviceStatus claimVault();
+
+  @async
+  IndexBackupStatus getIndexBackupStatus();
 }

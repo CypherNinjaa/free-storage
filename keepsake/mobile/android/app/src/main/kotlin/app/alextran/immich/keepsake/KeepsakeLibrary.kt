@@ -2,6 +2,7 @@ package app.alextran.immich.keepsake
 
 import android.content.ContentValues
 import android.content.Context
+import android.os.Build
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -16,6 +17,18 @@ import java.util.Base64
 import java.util.UUID
 
 class TooLargeException(message: String) : IllegalStateException(message)
+
+/** The phone that currently owns the vault: the newest sealed device claim in the System channel. */
+@Serializable
+data class DeviceClaim(val deviceId: String, val deviceName: String, val claimedAtMs: Long)
+
+/** Another phone claimed the vault after this one; writing now could overwrite that phone's index and albums. */
+class VaultInUseException(val holder: DeviceClaim) : IllegalStateException(
+  "Ambry is now active on ${holder.deviceName}. This phone stopped writing to the vault so it does not overwrite " +
+    "that phone's changes."
+)
+
+data class IndexBackupState(val lastSnapshotAtMs: Long?, val pendingChanges: Long, val assetCount: Long, val albumCount: Long)
 
 data class BackupHints(
   val localId: String,
@@ -72,6 +85,7 @@ class KeepsakeLibrary(
 
   suspend fun backup(hints: BackupHints): IndexRecord {
     hints.checksum?.let(index::findByChecksum)?.let { return it }
+    ensureActiveWriter()
     val key = vault.requireKey()
     val target = channels.channels() ?: throw IllegalStateException("The vault channels are not set up yet")
     val info = media.info(hints.localId)
@@ -205,6 +219,7 @@ class KeepsakeLibrary(
   fun restoreAllTrash(): Int = restore(index.trashedIds())
 
   suspend fun deletePermanently(ids: List<String>): Int {
+    ensureActiveWriter()
     val records = index.findAll(ids)
     records.groupBy { it.chatId }.forEach { (chatId, group) ->
       group.map { it.messageId }.chunked(100).forEach { client.deleteMessages(chatId, it) }
@@ -358,6 +373,8 @@ class KeepsakeLibrary(
 
   /** Uploads an encrypted copy of the index to the System channel and keeps the newest [SNAPSHOTS_TO_KEEP]. */
   suspend fun snapshotIndex(): Long {
+    // A snapshot replaces what a new phone restores, so always confirm this phone still owns the vault.
+    ensureActiveWriter(fresh = true)
     val key = vault.requireKey()
     val target = channels.channels() ?: throw IllegalStateException("The vault channels are not set up yet")
     val plain = File(context.cacheDir, "keepsake-index-${UUID.randomUUID()}.db")
@@ -417,6 +434,8 @@ class KeepsakeLibrary(
       }
     }
     reconcileWithHistory()
+    // The phone that restores the vault becomes the one that writes to it; the old phone stops at its next check.
+    claimVault()
     return index.count()
   }
 
@@ -461,6 +480,85 @@ class KeepsakeLibrary(
     }
     return added
   }
+
+  /** This install's random id. Kept outside the index, so a restored index never carries another phone's id. */
+  val deviceId: String by lazy {
+    val file = File(context.filesDir, "keepsake/device-id")
+    file.takeIf { it.exists() }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+      ?: UUID.randomUUID().toString().also {
+        file.parentFile?.mkdirs()
+        file.writeText(it)
+      }
+  }
+
+  private val deviceName: String
+    get() = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct().joinToString(" ")
+      .ifBlank { "another phone" }
+
+  @Volatile
+  private var writerCheckedAtMs = 0L
+
+  /** The phone that currently owns the vault (newest valid claim in the System channel), or null before any claim. */
+  suspend fun activeDevice(): DeviceClaim? {
+    val key = vault.requireKey()
+    val target = channels.channels() ?: return null
+    return systemMessages(target.systemChatId)
+      .filter { messageText(it).startsWith("$DEVICE_PREFIX ") }
+      .sortedByDescending { it.getLong("id") }
+      .firstNotNullOfOrNull { message -> runCatching { openClaim(key, messageText(message)) }.getOrNull() }
+  }
+
+  /** Makes this phone the one that writes to the vault. Other phones stop writing at their next check. */
+  suspend fun claimVault(): DeviceClaim {
+    val key = vault.requireKey()
+    val target = channels.channels() ?: throw IllegalStateException("The vault channels are not set up yet")
+    val claim = DeviceClaim(deviceId, deviceName, System.currentTimeMillis())
+    val sealed = VaultCrypto.seal(deviceKey(key), json.encodeToString(claim).toByteArray(), DEVICE_PREFIX.toByteArray())
+    val text = "$DEVICE_PREFIX ${Base64.getUrlEncoder().withoutPadding().encodeToString(sealed)}"
+    val messageId = withFloodRetry { client.sendText(target.systemChatId, text) }
+    val older = systemMessages(target.systemChatId)
+      .filter { messageText(it).startsWith("$DEVICE_PREFIX ") }
+      .map { it.getLong("id") }
+      .filter { it != messageId }
+    if (older.isNotEmpty()) runCatching { client.deleteMessages(target.systemChatId, older) }
+    writerCheckedAtMs = System.currentTimeMillis()
+    return claim
+  }
+
+  /**
+   * Throws [VaultInUseException] when another phone has claimed the vault since this one did. The first write to a
+   * vault without any claim claims it. A successful check is reused for [WRITER_CHECK_INTERVAL_MS] unless [fresh].
+   */
+  suspend fun ensureActiveWriter(fresh: Boolean = false) {
+    if (!fresh && System.currentTimeMillis() - writerCheckedAtMs < WRITER_CHECK_INTERVAL_MS) return
+    val holder = activeDevice()
+    when {
+      holder == null -> claimVault()
+      holder.deviceId == deviceId -> writerCheckedAtMs = System.currentTimeMillis()
+      else -> {
+        writerCheckedAtMs = 0L
+        throw VaultInUseException(holder)
+      }
+    }
+  }
+
+  fun indexBackupStatus(): IndexBackupState {
+    val seq = index.currentSeq()
+    val lastSeq = index.meta(META_SNAPSHOT_SEQ)?.toLongOrNull() ?: 0L
+    return IndexBackupState(
+      lastSnapshotAtMs = index.meta(META_SNAPSHOT_AT)?.toLongOrNull(),
+      pendingChanges = (seq - lastSeq).coerceAtLeast(0),
+      assetCount = index.count(),
+      albumCount = index.albumCount(),
+    )
+  }
+
+  private fun openClaim(key: ByteArray, text: String): DeviceClaim {
+    val sealed = Base64.getUrlDecoder().decode(text.removePrefix("$DEVICE_PREFIX ").trim())
+    return json.decodeFromString(String(VaultCrypto.open(deviceKey(key), sealed, DEVICE_PREFIX.toByteArray())))
+  }
+
+  private fun deviceKey(vaultKey: ByteArray) = VaultCrypto.subkey(vaultKey, "device")
 
   private fun captionRecord(key: ByteArray, chatId: Long, message: JSONObject): IndexRecord? {
     val document = message.optJSONObject("content")?.optJSONObject("document")?.optJSONObject("document") ?: return null
@@ -568,6 +666,8 @@ class KeepsakeLibrary(
   companion object {
     const val MAX_OBJECT_BYTES = 1_950L * 1024 * 1024
     const val VAULT_PREFIX = "KSVAULT1"
+    const val DEVICE_PREFIX = "KSDEV1"
+    private const val WRITER_CHECK_INTERVAL_MS = 10L * 60 * 1000
     const val SNAPSHOT_PREFIX = "KSIDX1:"
     /** System channel titles: current vaults, then vaults created before the app was renamed. */
     val SYSTEM_TITLE_PREFIXES = listOf("Ambry System", "Keepsake System")

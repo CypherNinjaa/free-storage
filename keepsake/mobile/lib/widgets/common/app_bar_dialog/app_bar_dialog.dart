@@ -16,7 +16,27 @@ import 'package:immich_mobile/providers/websocket.provider.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:immich_mobile/widgets/common/app_bar_dialog/app_bar_profile_info.dart';
 import 'package:immich_mobile/widgets/common/confirm_dialog.dart';
+import 'package:immich_mobile/platform/keepsake_api.g.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// Where Ambry's source code is published, as the AGPL requires for the Immich code it is built on.
+const _sourceCodeUrl = 'https://github.com/CypherNinjaa/free-storage';
+const _privacyPolicyUrl = 'https://github.com/CypherNinjaa/free-storage/blob/main/docs/PRIVACY_POLICY.md';
+
+String _ago(int epochMs) {
+  final elapsed = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(epochMs));
+  if (elapsed.inMinutes < 1) {
+    return 'just now';
+  }
+  if (elapsed.inHours < 1) {
+    return '${elapsed.inMinutes} min ago';
+  }
+  if (elapsed.inDays < 1) {
+    return '${elapsed.inHours} h ago';
+  }
+  return elapsed.inDays == 1 ? 'yesterday' : '${elapsed.inDays} days ago';
+}
 
 class ImmichAppBarDialog extends HookConsumerWidget {
   const ImmichAppBarDialog({super.key});
@@ -31,6 +51,17 @@ class ImmichAppBarDialog extends HookConsumerWidget {
     final isSelfTesting = useState(false);
     final isSnapshotting = useState(false);
     final vaultCount = useFuture(useMemoized(() => ref.read(keepsakeLibraryApiProvider).assetCount()));
+    final statusRefresh = useState(0);
+    final backupStatus = useFuture(
+      useMemoized(() => ref.read(keepsakeLibraryApiProvider).getIndexBackupStatus(), [statusRefresh.value]),
+    );
+    final activeDevice = useFuture(
+      useMemoized(
+        () => ref.read(keepsakeLibraryApiProvider).getActiveDevice().then<ActiveDeviceStatus?>((s) => s, onError: (_) => null),
+        [statusRefresh.value],
+      ),
+    );
+    final isClaiming = useState(false);
     final isReadonlyModeEnabled = ref.watch(readonlyModeProvider);
 
     useEffect(() {
@@ -140,6 +171,7 @@ class ImmichAppBarDialog extends HookConsumerWidget {
           isSnapshotting.value = true;
           try {
             final count = await ref.read(keepsakeLibraryApiProvider).snapshotIndex(true);
+            statusRefresh.value++;
             if (context.mounted) {
               ScaffoldMessenger.of(
                 context,
@@ -209,6 +241,58 @@ class ImmichAppBarDialog extends HookConsumerWidget {
       );
     }
 
+    /// Another phone claimed the vault: this phone no longer writes to it until the user takes it back.
+    Widget buildActiveDeviceWarning() {
+      final status = activeDevice.data;
+      if (status == null || status.isThisDevice) {
+        return const SizedBox.shrink();
+      }
+      return Container(
+        margin: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 4),
+        decoration: BoxDecoration(
+          color: context.colorScheme.errorContainer.withValues(alpha: 0.35),
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Backups paused on this phone', style: context.textTheme.labelLarge),
+            const SizedBox(height: 4),
+            Text(
+              'Your vault is now active on ${status.deviceName ?? 'another phone'}'
+              '${status.claimedAtMs == null ? '' : ' (since ${_ago(status.claimedAtMs!)})'}. Only one phone can write '
+              'to a vault, so this phone stopped backing up to avoid overwriting its albums and edits.',
+              style: context.textTheme.bodySmall,
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: isClaiming.value
+                    ? null
+                    : () async {
+                        isClaiming.value = true;
+                        try {
+                          await ref.read(keepsakeLibraryApiProvider).claimVault();
+                          statusRefresh.value++;
+                        } on PlatformException catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text(error.message ?? error.code)));
+                          }
+                        } finally {
+                          isClaiming.value = false;
+                        }
+                      },
+                child: const Text('Use this phone'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     Widget buildStorageInformation() {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -220,13 +304,21 @@ class ImmichAppBarDialog extends HookConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Serverless Encrypted Vault', style: context.textTheme.labelLarge),
+                  Text('Private Telegram vault', style: context.textTheme.labelLarge),
                   Text(
                     vaultCount.hasData
-                        ? '${vaultCount.data} item(s) encrypted in your private Telegram channel'
-                        : 'Storage: Private Telegram Channel (TDLib) • Zero Server',
+                        ? '${vaultCount.data} item(s) in your private Telegram channel'
+                        : 'Storage: your private Telegram channel • no server',
                     style: context.textTheme.bodySmall,
                   ),
+                  if (backupStatus.data case final status?)
+                    Text(
+                      status.lastSnapshotAtMs == null
+                          ? 'Library index not backed up yet'
+                          : 'Library index backed up ${_ago(status.lastSnapshotAtMs!)}'
+                                '${status.pendingChanges == 0 ? ' · up to date' : ' · newer changes back up daily'}',
+                      style: context.textTheme.bodySmall,
+                    ),
                 ],
               ),
             ),
@@ -238,8 +330,10 @@ class ImmichAppBarDialog extends HookConsumerWidget {
     Padding buildFooter() {
       return Padding(
         padding: const EdgeInsets.only(top: 10, bottom: 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          runSpacing: 6,
           children: [
             Text('Powered by the Telegram API', style: context.textTheme.bodySmall),
             const SizedBox(width: 14, child: Text("•", textAlign: TextAlign.center)),
@@ -255,9 +349,23 @@ class ImmichAppBarDialog extends HookConsumerWidget {
                   context: context,
                   applicationName: 'Ambry',
                   applicationVersion: packageInfo.version,
+                  applicationLegalese:
+                      'Ambry is free software under the GNU Affero General Public License v3. It is a modified '
+                      'version of the Immich mobile app (© Immich contributors, AGPL-3.0) and uses TDLib '
+                      '(Boost Software License). Source code: $_sourceCodeUrl',
                 );
               },
               child: Text(context.t.licenses, style: context.textTheme.bodySmall),
+            ),
+            const SizedBox(width: 14, child: Text("•", textAlign: TextAlign.center)),
+            InkWell(
+              onTap: () => unawaited(launchUrl(Uri.parse(_sourceCodeUrl), mode: LaunchMode.externalApplication)),
+              child: Text('Source code', style: context.textTheme.bodySmall),
+            ),
+            const SizedBox(width: 14, child: Text("•", textAlign: TextAlign.center)),
+            InkWell(
+              onTap: () => unawaited(launchUrl(Uri.parse(_privacyPolicyUrl), mode: LaunchMode.externalApplication)),
+              child: Text('Privacy', style: context.textTheme.bodySmall),
             ),
           ],
         ),
@@ -318,6 +426,7 @@ class ImmichAppBarDialog extends HookConsumerWidget {
                     ],
                   ),
                 ),
+                buildActiveDeviceWarning(),
                 if (isReadonlyModeEnabled) buildReadonlyMessage(),
                 buildSelfTestButton(),
                 buildSnapshotButton(),

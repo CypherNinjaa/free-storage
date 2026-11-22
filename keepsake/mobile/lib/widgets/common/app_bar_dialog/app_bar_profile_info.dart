@@ -14,6 +14,9 @@ import 'package:immich_mobile/providers/user.provider.dart';
 import 'package:immich_mobile/widgets/common/immich_loading_indicator.dart';
 import 'package:immich_mobile/widgets/common/user_circle_avatar.dart';
 
+
+const bool _serverless = true;
+
 class AppBarProfileInfoBox extends HookConsumerWidget {
   const AppBarProfileInfoBox({super.key});
 
@@ -78,13 +81,13 @@ class AppBarProfileInfoBox extends HookConsumerWidget {
     return ListTile(
       minLeadingWidth: 50,
       leading: GestureDetector(
-        onTap: pickUserProfileImage,
+        // Profile pictures are stored on an Immich server; Ambry has none, so the avatar is not editable.
         onLongPress: toggleReadonlyMode,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             AbsorbPointer(child: buildUserProfileImage()),
-            if (!isReadonlyModeEnabled)
+            if (!isReadonlyModeEnabled && !_serverless)
               Positioned(
                 bottom: -5,
                 right: -8,

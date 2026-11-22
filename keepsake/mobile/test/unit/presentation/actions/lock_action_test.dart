@@ -159,5 +159,5 @@ void main() {
 
       expect(find.byType(ImmichIconButton), findsNothing);
     });
-  });
+  }, skip: 'Ambry has no locked folder: it needs an Immich server PIN, so LockAction is hidden');
 }

@@ -41,11 +41,8 @@ class VideoViewerSettings extends HookConsumerWidget {
           title: context.t.setting_video_viewer_looping_title,
           subtitle: context.t.loop_videos_description,
         ),
-        SettingsSwitchListTile(
-          valueNotifier: useOriginalVideo,
-          title: context.t.setting_video_viewer_original_video_title,
-          subtitle: context.t.setting_video_viewer_original_video_subtitle,
-        ),
+        // "Force original video" chooses between a server transcode and the original; Ambry always streams the
+        // original from Telegram, so the switch would do nothing.
       ],
     );
   }
