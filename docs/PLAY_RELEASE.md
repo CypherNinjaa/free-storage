@@ -9,7 +9,7 @@
 | 1 | Choose the permanent application ID | `keepsake/mobile/android/app/build.gradle` → `applicationId` | Today `app.keepsake.photos`. Recommended: `io.github.cypherninjaa.ambry` (a namespace you control through GitHub). **Cannot change after the first upload** |
 | 2 | Create the upload key (keep it and its password safe; losing it means asking Google for a key reset) | `keytool -genkeypair -v -keystore keepsake/mobile/android/key.jks -keyalg RSA -keysize 4096 -validity 10000 -alias upload` | `key.jks` and `key.properties` are git-ignored. `key.properties` holds `storePassword`, `keyPassword`, `keyAlias=upload`, `storeFile=../key.jks` |
 | 3 | Provide the Telegram API credentials to the build | `.env` (`api_id`, `api_hash`) or `KEEPSAKE_TELEGRAM_API_ID` / `KEEPSAKE_TELEGRAM_API_HASH` | Register the app at <https://my.telegram.org> under the name Ambry |
-| 4 | Build the App Bundle | `flutter build appbundle --release` (in `keepsake/mobile`) | Output: `build/app/outputs/bundle/release/app-release.aab` |
+| 4 | Build the App Bundle | `flutter build appbundle --release` (in `keepsake/mobile`) | Output: `build/app/outputs/bundle/release/app-release.aab` (verified 2026-11-22: 184 MB bundle, about 119 MB download on an arm64 phone). Without `key.jks` the build falls back to the debug key, which Play rejects |
 | 5 | Create the app in Play Console | play.google.com/console | Enrol in **Play App Signing** (default) |
 | 6 | Store listing | §2 below | Screenshots: 2–8 phone screenshots (Photos, Albums, Backup screen, viewer) |
 | 7 | Privacy policy URL | <https://github.com/CypherNinjaa/free-storage/blob/main/docs/PRIVACY_POLICY.md> | Also linked in the app (account sheet → Privacy) |

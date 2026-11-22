@@ -120,7 +120,7 @@ All tests used synthetic images and test-pattern videos, never personal photos. 
 | 6 | **One phone per vault** | Two phones using the same vault at once could overwrite each other's albums and edits | ✅ Done: only the active phone writes; a restore makes the new phone active; the old phone shows "Backups paused" with "Use this phone" |
 | 7 | **Files over 1.95 GiB are refused** | Long 4K videos will not back up | Split large files into parts (Telegram's limit is 2 GB per file, 4 GB with Premium) |
 | 8 | **Background backup on Realme/ColorOS (and similar)** | The OS freezes the app in the background unless "Allow background activity" is on | ✅ Verified working once allowed; the Backup screen warns with an "Open app settings" button while it is off |
-| 9 | **Publish as an App Bundle** | The universal APK is 179 MB because it carries TDLib for three CPU types | `flutter build appbundle --release` (see [PLAY_RELEASE.md](PLAY_RELEASE.md)); Play then delivers only the phone's own CPU type |
+| 9 | **Publish as an App Bundle** | The universal APK is 179 MB because it carries TDLib for three CPU types | ✅ `flutter build appbundle --release` builds (184 MB bundle; Play delivers about 119 MB to an arm64 phone). Sign it with your upload key before uploading ([PLAY_RELEASE.md](PLAY_RELEASE.md)) |
 
 ## 5a. Test data left on your phone and in your vault
 
