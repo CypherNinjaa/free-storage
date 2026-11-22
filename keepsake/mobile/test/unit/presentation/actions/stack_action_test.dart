@@ -90,5 +90,5 @@ void main() {
 
       expect(find.byType(ImmichIconButton), findsNothing);
     });
-  });
+  }, skip: 'Ambry cannot stack photos: stacks live on an Immich server, so StackAction is hidden');
 }

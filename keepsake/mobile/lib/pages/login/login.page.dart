@@ -169,7 +169,7 @@ class LoginPage extends HookConsumerWidget {
       if (!useRecoveryWords.value) {
         return runSetup('Unlocking your vault…', () => vaultApi.unlockWithPassphrase(passphraseController.text));
       }
-      final words = recoveryWordsController.text.trim().toLowerCase().split(RegExp(r'[\s,]+'));
+      final words = RecoveryKit.parseWords(recoveryWordsController.text);
       if (words.length != RecoveryKit.wordCount || !words.every(RecoveryKit.isWord)) {
         errorText.value = 'Enter all ${RecoveryKit.wordCount} recovery words in order, separated by spaces.';
         return;

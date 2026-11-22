@@ -103,7 +103,8 @@ class MediaServer(private val library: KeepsakeLibrary, private val stateFile: F
       mapOf(
         "Content-Type" to "image/jpeg",
         "Content-Length" to bytes.size.toString(),
-        "Cache-Control" to "private, max-age=31536000, immutable",
+        // The vault keeps its own encrypted thumbnail cache, so decrypted bytes must not be persisted by HTTP caches.
+        "Cache-Control" to "no-store",
       ),
     )
     if (!headOnly) output.write(bytes)
@@ -129,7 +130,8 @@ class MediaServer(private val library: KeepsakeLibrary, private val stateFile: F
       "Content-Type" to record.mimeType,
       "Content-Length" to length.toString(),
       "Accept-Ranges" to "bytes",
-      "Cache-Control" to "private, max-age=86400",
+      // The vault keeps its own encrypted thumbnail cache, so decrypted bytes must not be persisted by HTTP caches.
+      "Cache-Control" to "no-store",
     )
     if (range != null) responseHeaders["Content-Range"] = "bytes $start-$end/$size"
     writeHead(output, if (range != null) 206 else 200, if (range != null) "Partial Content" else "OK", responseHeaders)

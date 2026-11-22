@@ -51,7 +51,7 @@ android {
   }
 
   defaultConfig {
-    applicationId "app.keepsake.photos"
+    applicationId "io.github.cypherninjaa.ambry"
     minSdk = 26
     targetSdk = flutter.targetSdkVersion
     versionCode flutter.versionCode

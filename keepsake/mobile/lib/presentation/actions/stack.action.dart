@@ -8,6 +8,8 @@ import 'package:immich_mobile/providers/infrastructure/toast.provider.dart';
 import 'package:immich_mobile/providers/user.provider.dart';
 import 'package:immich_mobile/utils/error_handler.dart';
 
+const bool _serverless = true;
+
 typedef _State = ({bool shouldStack, List<String> assetIds, List<String> stackIds});
 
 final _stateProvider = Provider.family.autoDispose<_State?, ActionSource>((ref, source) {
@@ -30,6 +32,10 @@ class StackAction extends AssetActionBuilder {
 
   @override
   ActionItem? create(BuildContext context, WidgetRef ref) {
+    // Serverless: Ambry cannot stack photos because stacks live on an Immich server.
+    if (_serverless) {
+      return null;
+    }
     final shouldStack = ref.watch(_stateProvider(source).select((state) => state?.shouldStack));
     if (shouldStack == null) {
       return null;

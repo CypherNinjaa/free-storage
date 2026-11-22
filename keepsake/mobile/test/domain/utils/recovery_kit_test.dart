@@ -48,5 +48,45 @@ void main() {
       expect(() => RecoveryKit.toEntropy(words.take(12).toList()), throwsArgumentError);
       expect(() => RecoveryKit.fromEntropy(Uint8List(16)), throwsArgumentError);
     });
+
+    test('parses exact text produced by the copy recovery kit button', () {
+      final words = RecoveryKit.generate24Words();
+      final copied = words.asMap().entries.map((e) => '${e.key + 1}. ${e.value}').join('\n');
+
+      expect(RecoveryKit.parseWords(copied), words);
+    });
+
+    test('parses plain space-separated words', () {
+      final words = RecoveryKit.generate24Words();
+
+      expect(RecoveryKit.parseWords(words.join(' ')), words);
+    });
+
+    test('parses comma-separated words', () {
+      final words = RecoveryKit.generate24Words();
+
+      expect(RecoveryKit.parseWords(words.join(',')), words);
+      expect(RecoveryKit.parseWords(words.join(', ')), words);
+    });
+
+    test('parses mixed newlines, tabs, numbering styles, and extra spaces', () {
+      final words = RecoveryKit.generate24Words();
+      final formatted = [
+        for (var i = 0; i < words.length; i++)
+          switch (i % 4) {
+            0 => '  ${i + 1}. ${words[i].toUpperCase()}  ',
+            1 => '\t${i + 1}) ${words[i]}',
+            2 => '${i + 1}:${words[i]}',
+            _ => '${i + 1}   ${words[i]}',
+          },
+      ];
+      final mixed =
+          '${formatted.take(8).join('\r\n')}\n\n'
+          '${formatted.skip(8).take(8).join(', ')}\t'
+          '${formatted.skip(16).join('   ')}';
+
+      expect(RecoveryKit.parseWords(mixed), words);
+      expect(RecoveryKit.parseWords('  , \n\t '), isEmpty);
+    });
   });
 }

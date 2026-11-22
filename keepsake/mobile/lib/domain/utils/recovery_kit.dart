@@ -42,6 +42,29 @@ class RecoveryKit {
 
   static const int wordCount = 24;
 
+  static final RegExp _separatorPattern = RegExp(r'[\s,]+');
+  static final RegExp _numberingPrefixPattern = RegExp(r'^\d+[.):]');
+  static final RegExp _pureNumberingPattern = RegExp(r'^\d+$');
+
+  /// Parses pasted or typed recovery kit text into lower-case word tokens,
+  /// stripping numbering prefixes ("1. ", "1) ", "1: ") and ignoring empty or
+  /// pure numbering tokens.
+  static List<String> parseWords(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      return const [];
+    }
+    final words = <String>[];
+    for (final raw in trimmed.toLowerCase().split(_separatorPattern)) {
+      final token = raw.replaceFirst(_numberingPrefixPattern, '');
+      if (token.isEmpty || _pureNumberingPattern.hasMatch(token)) {
+        continue;
+      }
+      words.add(token);
+    }
+    return words;
+  }
+
   static List<String> generate24Words() {
     final rng = Random.secure();
     return List<String>.generate(wordCount, (_) => _words[rng.nextInt(_words.length)]);
