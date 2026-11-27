@@ -16,6 +16,11 @@ data class RecoveryRecord(
   val dek: String,
   /** [KeepsakeIndex.FORMAT_ENCRYPTED] or [KeepsakeIndex.FORMAT_PLAIN]; older records omit it (encrypted). */
   val format: Int = KeepsakeIndex.FORMAT_ENCRYPTED,
+  /** Assets larger than one Telegram file are split (see [PartLayout]); every part's caption names its part. */
+  val partIndex: Int = 0,
+  val partCount: Int = 1,
+  /** Original bytes per part; 0 for assets stored in one file. */
+  val partBytes: Long = 0,
 )
 
 object VaultCaption {

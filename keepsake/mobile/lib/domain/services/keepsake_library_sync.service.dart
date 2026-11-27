@@ -35,6 +35,10 @@ class KeepsakeLibrarySyncService {
   /// Passes in one isolate run one after another, so a pass requested after a write always sees that write.
   static Future<void> _tail = Future.value();
 
+  /// While uploads keep changing the library, "On this day" is rebuilt at most this often (it scans every asset).
+  static const _memoriesRefreshInterval = Duration(minutes: 15);
+  static DateTime? _memoriesRefreshedAt;
+
   final KeepsakeLibraryApi _api;
   final SyncStreamRepository _repository;
   final MemoryRepository? _memoryRepository;
@@ -96,7 +100,9 @@ class KeepsakeLibrarySyncService {
       _log.info('Projected $changed library change(s) up to seq $seq');
     }
     try {
-      await _refreshOnThisDayMemories(user.id, force: changed > 0);
+      final refreshedAt = _memoriesRefreshedAt;
+      final due = refreshedAt == null || DateTime.now().difference(refreshedAt) >= _memoriesRefreshInterval;
+      await _refreshOnThisDayMemories(user.id, force: changed > 0 && due);
     } catch (error, stackTrace) {
       _log.warning('Could not build On this day memories', error, stackTrace);
     }
@@ -164,6 +170,7 @@ class KeepsakeLibrarySyncService {
     if (!force && Store.tryGet(StoreKey.keepsakeMemoriesDay) == today) {
       return;
     }
+    _memoriesRefreshedAt = now;
 
     final byYear = await memories.getOnThisDayAssetIds(ownerId, month: now.month, day: now.day, beforeYear: now.year);
     final showAt = DateTime.utc(now.year, now.month, now.day);

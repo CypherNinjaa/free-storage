@@ -8,10 +8,12 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * An asset stored in Telegram, opened for reading. Encrypted files ([header] set) are read and decrypted one
  * IMTG segment at a time; plain files are read directly in [RemoteAssetReader.PLAIN_SEGMENT_BYTES] blocks.
+ * [fileId] is the Telegram file of part 0; the other parts of a split asset are resolved when first read.
  */
 class RemoteFile(val record: IndexRecord, val dek: ByteArray?, @Volatile var fileId: Int, val header: SegmentedCipher.Header?) {
   val size: Long get() = header?.plaintextSize ?: record.sizeBytes
   val segmentSize: Long get() = header?.segmentSize?.toLong() ?: RemoteAssetReader.PLAIN_SEGMENT_BYTES
+  val layout: PartLayout? = record.layout
 }
 
 class RemoteAssetReader(
@@ -51,8 +53,8 @@ class RemoteAssetReader(
   }
 
   /** Remembers the file id of an upload that just finished, so this session can read it without a lookup. */
-  fun rememberSessionFileId(assetId: String, fileId: Int) {
-    sessionFileIds[assetId] = fileId
+  fun rememberSessionFileId(assetId: String, fileId: Int, part: Int = 0) {
+    sessionFileIds[partKey(assetId, part)] = fileId
   }
 
   suspend fun segment(file: RemoteFile, segmentIndex: Long): ByteArray {
@@ -68,14 +70,27 @@ class RemoteAssetReader(
       offset = segmentIndex * PLAIN_SEGMENT_BYTES
       length = minOf(PLAIN_SEGMENT_BYTES, file.size - offset).toInt()
     }
+    val (part, partOffset) = file.layout?.locate(offset) ?: (0 to offset)
     val bytes = try {
-      client.downloadRange(file.fileId, offset, length)
+      client.downloadRange(partFileId(file, part), partOffset, length)
     } catch (error: TdException) {
-      file.fileId = fileIdFor(file.record, refresh = true)
-      client.downloadRange(file.fileId, offset, length)
+      client.downloadRange(partFileId(file, part, refresh = true), partOffset, length)
     }
     val plaintext = if (header == null) bytes else SegmentedCipher.decryptSegment(checkNotNull(file.dek), header, segmentIndex, bytes)
     return plaintext.also { segments.put(key, it) }
+  }
+
+  /** The Telegram file holding [part] of [file] (part 0 for assets stored in one file). */
+  private suspend fun partFileId(file: RemoteFile, part: Int, refresh: Boolean = false): Int {
+    if (part == 0) {
+      if (refresh) file.fileId = fileIdFor(file.record, refresh = true)
+      return file.fileId
+    }
+    val key = partKey(file.record.id, part)
+    if (!refresh) sessionFileIds[key]?.let { return it }
+    val ref = index.parts(file.record.id).firstOrNull { it.index == part }
+      ?: throw IllegalStateException("Part ${part + 1} of ${file.record.name} is missing from the index")
+    return resolveFileId(ref.chatId, ref.messageId, file.record.name).also { sessionFileIds[key] = it }
   }
 
   suspend fun read(file: RemoteFile, position: Long, buffer: ByteArray, offset: Int, length: Int): Int {
@@ -96,7 +111,7 @@ class RemoteAssetReader(
 
   fun forget(assetId: String) {
     headers.remove(assetId)
-    sessionFileIds.remove(assetId)
+    sessionFileIds.keys.removeIf { it == assetId || it.startsWith("$assetId#") }
   }
 
   fun mediaDataSource(file: RemoteFile): MediaDataSource = object : MediaDataSource() {
@@ -118,21 +133,27 @@ class RemoteAssetReader(
 
   private suspend fun fileIdFor(record: IndexRecord, refresh: Boolean = false): Int {
     if (!refresh) sessionFileIds[record.id]?.let { return it }
-    if (!chatsLoaded) {
-      client.loadChats()
-      chatsLoaded = true
-    }
-    val fileId = client.documentFileId(record.chatId, record.messageId)
-      ?: run {
-        // Opening the chat makes TDLib fetch it if it was not in the loaded chat list yet.
-        runCatching { client.chat(record.chatId) }
-        client.documentFileId(record.chatId, record.messageId)
-      }
-      ?: throw IllegalStateException("The Telegram message for ${record.name} no longer exists")
+    val fileId = resolveFileId(record.chatId, record.messageId, record.name)
     sessionFileIds[record.id] = fileId
     index.updateFileId(record.id, fileId)
     return fileId
   }
+
+  private suspend fun resolveFileId(chatId: Long, messageId: Long, name: String): Int {
+    if (!chatsLoaded) {
+      client.loadChats()
+      chatsLoaded = true
+    }
+    return client.documentFileId(chatId, messageId)
+      ?: run {
+        // Opening the chat makes TDLib fetch it if it was not in the loaded chat list yet.
+        runCatching { client.chat(chatId) }
+        client.documentFileId(chatId, messageId)
+      }
+      ?: throw IllegalStateException("The Telegram message for $name no longer exists")
+  }
+
+  private fun partKey(assetId: String, part: Int): String = if (part == 0) assetId else "$assetId#$part"
 
   companion object {
     private const val SEGMENT_CACHE_BYTES = 24 * 1024 * 1024

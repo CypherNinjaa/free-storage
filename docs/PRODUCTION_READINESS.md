@@ -3,6 +3,7 @@
 > **App:** Ambry (formerly the working name "Keepsake"), the serverless Immich + Telegram Android app in `../keepsake/mobile/`.
 > **Date:** 2026-11-22. **Device:** Realme RMX3785, Android 15. **Library under test:** 576 items (399 photos, 177 videos, 11.35 GB) backed up from the phone's Camera album.
 > **Builds on:** [PHASE4_8_LIBRARY_LOG.md](PHASE4_8_LIBRARY_LOG.md).
+> **Updated 2026-11-27:** new-phone restore passed on the production app; Phase 10 hardening (large files, Android 15, flood waits, big libraries) in §8.
 
 ---
 
@@ -10,7 +11,7 @@
 
 **Ready for your own daily use and for a small closed beta. Not yet ready for a public Play Store launch.**
 
-The core promise works end to end on a real phone. Photos and videos back up to your own Telegram, encrypted or not (your choice). They come back byte-identical, stream, show in all four screens, and survive deletion from the phone. What stops a public launch is mostly paperwork and a few safety rails, not the core: the final app ID and signing key, AGPL source publication, a privacy policy, the untested new-phone restore, and a guard against two phones writing one vault (§5).
+The core promise works end to end on a real phone. Photos and videos back up to your own Telegram, encrypted or not (your choice). They come back byte-identical, stream, show in all four screens, and survive deletion from the phone. What stops a public launch is mostly paperwork and a few safety rails, not the core: the final app ID and signing key, AGPL source publication, a privacy policy, the untested new-phone restore, and a guard against two phones writing one vault (§5). As of 2026-11-27 all of those are done except enrolling in Play App Signing and the store listing.
 
 ## 2. Name and logo
 
@@ -112,15 +113,16 @@ All tests used synthetic images and test-pattern videos, never personal photos. 
 
 | # | Blocker | Why it matters | What to do |
 |---|---|---|---|
-| 1 | **Final application ID and signing key** | The ID (`io.github.cypherninjaa.ambry`) and the signing key can never change after the first Play upload | ✅ Application ID set to `io.github.cypherninjaa.ambry`. **Still to do:** create an upload key and enrol in Play App Signing. Changing the ID on your phone makes a new app: sign in to Telegram again and restore the vault (this doubles as the new-phone restore test) |
-| 2 | **AGPL-3.0 obligations** | Immich's mobile code is AGPL-3.0. Distributing Ambry means offering its complete source under the same licence | ✅ Done in code: `keepsake/LICENSE` (AGPL-3.0 text), About shows "modified version of the Immich mobile app" and a **Source code** link to `github.com/CypherNinjaa/free-storage`. **Still to do:** make that repository public before release |
+| 1 | **Final application ID and signing key** | The ID (`io.github.cypherninjaa.ambry`) and the signing key can never change after the first Play upload | ✅ Application ID set to `io.github.cypherninjaa.ambry`; upload key created (`keepsake/mobile/android/key.jks`, kept out of git, release builds sign with it). **Still to do:** enrol in Play App Signing when you create the app in Play Console, and keep a backup of `key.jks` and its passwords |
+| 2 | **AGPL-3.0 obligations** | Immich's mobile code is AGPL-3.0. Distributing Ambry means offering its complete source under the same licence | ✅ Done in code: `keepsake/LICENSE` (AGPL-3.0 text), About shows "modified version of the Immich mobile app" and a **Source code** link to `github.com/CypherNinjaa/free-storage`; the repository is public and has a root `LICENSE` |
 | 3 | **Telegram API terms** | Ambry uses your own api_id/api_hash; users sign in with their own (dedicated) account | Register the production app at my.telegram.org under the Ambry name, follow the API terms (no "Telegram" in the app name, no impersonation, privacy policy), and tell users plainly to use a dedicated account. Very large uploads can hit flood limits; Ambry already waits and retries |
 | 4 | **Privacy policy + Play Data safety form** | Required for apps that read photos, location metadata and a phone number | ✅ Published: <https://github.com/CypherNinjaa/free-storage/blob/main/docs/PRIVACY_POLICY.md> (also linked in the app: account sheet → Privacy). Data safety answers: [PLAY_RELEASE.md](PLAY_RELEASE.md) §3 |
-| 5 | **New-phone restore never run on a device** | Restore is the whole safety net | Run it once end to end (see blocker 1) before inviting testers |
+| 5 | **New-phone restore never run on a device** | Restore is the whole safety net | ✅ Done: the production app (new app ID, so a fresh install) signed in, unlocked the vault and restored the library; confirmed working on 2026-11-27 |
 | 6 | **One phone per vault** | Two phones using the same vault at once could overwrite each other's albums and edits | ✅ Done: only the active phone writes; a restore makes the new phone active; the old phone shows "Backups paused" with "Use this phone" |
-| 7 | **Files over 1.95 GiB are refused** | Long 4K videos will not back up | Split large files into parts (Telegram's limit is 2 GB per file, 4 GB with Premium) |
+| 7 | **Files over 1.95 GiB are refused** | Long 4K videos will not back up | ✅ Done (Phase 10, §8): large files are split into parts; there is no size limit any more |
 | 8 | **Background backup on Realme/ColorOS (and similar)** | The OS freezes the app in the background unless "Allow background activity" is on | ✅ Verified working once allowed; the Backup screen warns with an "Open app settings" button while it is off |
 | 9 | **Publish as an App Bundle** | The universal APK is 179 MB because it carries TDLib for three CPU types | ✅ `flutter build appbundle --release` builds (184 MB bundle; Play delivers about 119 MB to an arm64 phone). Sign it with your upload key before uploading ([PLAY_RELEASE.md](PLAY_RELEASE.md)) |
+| 10 | **TDLib binaries are not in the repository** | `libtdjson.so` (TDLib 1.8.65) lives only in `keepsake/mobile/android/app/src/main/jniLibs/`, which git ignores; its origin is unrecorded ([PHASE3_TELEGRAM_STORE_LOG.md](PHASE3_TELEGRAM_STORE_LOG.md)). A fresh clone of the public repo cannot build, and the binary cannot be checked | Build TDLib 1.8.65 from github.com/tdlib/td for arm64-v8a, armeabi-v7a and x86_64, compare, and add a build script (or release the .so files with their hashes). Until then keep a backup of that folder |
 
 ## 5a. Test data left on your phone and in your vault
 
@@ -142,3 +144,30 @@ Faces/People (Phase 9) · place names (reverse geocoding) and the Location filte
 | Logs | Tokens, keys and captions are never logged |
 | Permissions | Photos/videos (read), media location, notifications, manage media, foreground location (map button only); no background location |
 | Open item | No crash reporting. Play Console vitals cover crashes only after release |
+
+## 8. Phase 10 hardening (2026-11-27)
+
+| Area | Change | Why |
+|---|---|---|
+| **Large files** | Files are split into parts, one Telegram message each: encrypted files over 512 MiB into 256 MiB parts, plain files over 1.95 GiB into 1.9 GiB parts (plain files stay whole below that so Telegram can still play them). Every part's caption carries the encrypted recovery record and its part number. Streaming, seeking, saving, sharing, thumbnails and permanent delete work across parts; a restore without a snapshot rebuilds a split file once all its parts are in the channel | No size limit any more. Preparing a part needs about 0.3 GB of free space instead of the whole file, and a background run that Android stops after 10–20 minutes keeps the parts it finished |
+| **Interrupted uploads** | Progress is saved after every part, and the next attempt continues with the next part (same file key and nonce; each part is checked against its checksum first, so a file edited meanwhile is uploaded again from scratch). Uploads abandoned for 7 days are deleted from Telegram | A 4 GB video no longer starts from zero after every interruption |
+| **Android 15 background limit** | WorkManager 2.9.1 → 2.10.5 | Android 15 ends "data sync" background work after 6 hours a day by calling `onTimeout`; WorkManager 2.9.1 does not implement it, so the system would have crashed the app; 2.10.5 stops the work cleanly (checked in both libraries' classes) |
+| **Free space** | Before preparing a file, the app checks free space and fails that file with "Not enough free space to back up … (needs N MB)" | Before, a full disk failed with a raw I/O error |
+| **Telegram flood waits** | Waits of up to 2 minutes are waited out; a longer one stops the backup run with "Telegram asked Ambry to pause uploads for …", and requests fail at once until it is over; the next run continues | Before, the app slept through a wait of any length (even hours) inside one upload |
+| **Libraries of 100k photos** | A restore without a snapshot writes the index in batches of 500 (it was one disk write per photo); index snapshots are gzipped (several times smaller) and, for big libraries, taken every n/20 changes instead of every 200 (the 6-hour rule still applies); "On this day" is rebuilt at most every 15 minutes while uploads run | Restoring 100k photos would have taken 100k separate disk writes, and a 100k-photo index (tens of MB) would have been re-uploaded every 200 photos |
+| **Index format** | Schema 4: `part_count`, `part_bytes` and an `asset_parts` table. Older indexes and snapshots upgrade when opened | Records which messages hold each part |
+
+Tests: Kotlin unit tests 28/28, 7 of them new (part maths; split encryption is byte-for-byte the whole-file encryption; every segment is found in and decrypts from its part; captions with parts; real part sizes fit in one Telegram file). Not done: the optional second-account mirror from the Phase 10 plan.
+
+On the phone (Ambry 1.0.1, release build signed with the upload key, fresh install + restore of the real library from a 1.0.0 snapshot, 2026-11-27):
+
+| Check | Result |
+|---|---|
+| Restore of an old-format (schema 3, uncompressed) snapshot into 1.0.1 | ✅ library back, no errors |
+| Synthetic 640 MB video (610 MiB, 1080p, 64 s), encryption on | ✅ split into 3 parts: 268,439,616 + 268,439,552 + 102,646,344 bytes, exactly the computed sizes; ~3.2 MB/s |
+| App force-stopped after part 1, upload tapped again | ✅ same upload id, "3 parts, 1 already in Telegram"; parts 2 and 3 sent, all confirmed |
+| Phone copy deleted, video played from Telegram | ✅ plays; seeking to 0:48 (part 2) and 1:01 (part 3) plays; loops back to part 1 |
+| Saved back to the phone from the vault | ✅ SHA-1 identical to the original (`15f8ff90…96facd`), 160 s for 640 MB |
+| Moved to trash, then deleted permanently | ✅ gone from the trash and the timeline, no errors |
+
+Known limit (not new): Telegram delivered about 3 MB/s here, so a video recorded at more than about 25 Mbit/s pauses to buffer when played from the vault; the phone's own copy, or a saved copy, plays smoothly.

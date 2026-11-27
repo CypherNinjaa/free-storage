@@ -1,6 +1,6 @@
 # Telegram API Analysis — Can Telegram channels act as photo/video storage?
 
-> **Snapshot:** Bot API **10.4** (changelog entry dated 2026-11-09), pages fetched **2026-11-18**. Raw copies are in `../sources/<name>/`; they are untrusted HTML snapshots, kept for traceability.
+> **Snapshot:** Bot API **10.4** (changelog entry dated 2026-11-09), pages fetched **2026-11-18**. The raw copies that were in `../sources/<name>/` (the "Local copy" column) were removed on 2026-11-27; use the URLs.
 > **Role in the project:** verified Telegram reference for the current plan, `ARCHITECTURE_SERVERLESS_ANDROID.md`. That plan uses TDLib on the phone with a dedicated Telegram account: no server, no bot.
 > **Evidence tags:** **[DOC]** official Telegram documentation · **[SRC]** `tdlib/telegram-bot-api` source (master, fetched 2026-11-18) · **[3P]** third party · **[PoC]** undocumented; must be measured · **[INFER]** reasoned inference, not documented.
 

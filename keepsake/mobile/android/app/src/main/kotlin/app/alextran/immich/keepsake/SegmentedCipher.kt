@@ -59,9 +59,16 @@ object SegmentedCipher {
 
   class EncryptionResult(val header: Header, val dek: ByteArray, val plaintextSha1: String)
 
-  fun encrypt(input: InputStream, plaintextSize: Long, destination: File): EncryptionResult {
-    val dek = VaultCrypto.randomBytes(VaultCrypto.KEY_BYTES)
-    val header = Header(SEGMENT_SIZE, plaintextSize, VaultCrypto.randomBytes(NONCE_BYTES))
+  fun newHeader(plaintextSize: Long): Header = Header(SEGMENT_SIZE, plaintextSize, VaultCrypto.randomBytes(NONCE_BYTES))
+
+  fun encrypt(
+    input: InputStream,
+    plaintextSize: Long,
+    destination: File,
+    dek: ByteArray = VaultCrypto.randomBytes(VaultCrypto.KEY_BYTES),
+    header: Header = newHeader(plaintextSize),
+  ): EncryptionResult {
+    require(header.plaintextSize == plaintextSize) { "Header is for ${header.plaintextSize} bytes, not $plaintextSize" }
     val sha1 = MessageDigest.getInstance("SHA-1")
     destination.outputStream().buffered(256 * 1024).use { output ->
       output.write(header.bytes)
@@ -79,6 +86,35 @@ object SegmentedCipher {
       require(total == plaintextSize) { "Expected $plaintextSize bytes but read $total" }
     }
     return EncryptionResult(header, dek, sha1.digest().toHex())
+  }
+
+  /**
+   * Encrypts segments [firstSegment, firstSegment + count) of the stream [header] describes, reading exactly their
+   * plaintext from [input], and writes them to [output] (no header). The output equals that range of what [encrypt]
+   * writes with the same key and header. Returns the number of plaintext bytes read.
+   */
+  fun encryptSegments(
+    input: InputStream,
+    dek: ByteArray,
+    header: Header,
+    firstSegment: Long,
+    count: Long,
+    output: OutputStream,
+    sha1: MessageDigest? = null,
+  ): Long {
+    require(firstSegment >= 0 && count >= 0 && firstSegment + count <= header.segmentCount) {
+      "Segments $firstSegment..${firstSegment + count} are out of range"
+    }
+    val buffer = ByteArray(header.segmentSize)
+    var total = 0L
+    for (index in firstSegment until firstSegment + count) {
+      val length = header.segmentPlaintextLength(index)
+      require(readFully(input, buffer, length) == length) { "The original ended before segment $index" }
+      sha1?.update(buffer, 0, length)
+      output.write(cipher(Cipher.ENCRYPT_MODE, dek, header, index).doFinal(buffer, 0, length))
+      total += length
+    }
+    return total
   }
 
   fun decryptSegment(dek: ByteArray, header: Header, index: Long, ciphertext: ByteArray): ByteArray {
@@ -118,10 +154,10 @@ object SegmentedCipher {
     }
   }
 
-  private fun readFully(input: InputStream, buffer: ByteArray): Int {
+  private fun readFully(input: InputStream, buffer: ByteArray, length: Int = buffer.size): Int {
     var offset = 0
-    while (offset < buffer.size) {
-      val read = input.read(buffer, offset, buffer.size - offset)
+    while (offset < length) {
+      val read = input.read(buffer, offset, length - offset)
       if (read < 0) break
       offset += read
     }

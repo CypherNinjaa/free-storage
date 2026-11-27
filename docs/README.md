@@ -1,8 +1,8 @@
 # Ambry (Immich + Telegram Android App) — Project Docs
 
 **Project:** **Ambry**, an Android photo/video backup app built from Immich's mobile code, storing everything in Telegram, with **no server**. (Working name until 2026-11-22: "Keepsake".)
-**Code baseline:** `immich-app/immich` @ `f005e0ce44ed3c3d9a18bc8b6dbb15a22af29205`, cloned read-only at `../immich/`.
-**Telegram baseline:** Bot API 10.4 / TDLib docs, official pages snapshotted to `../sources/` (2026-11-18).
+**Code baseline:** `immich-app/immich` @ `f005e0ce44ed3c3d9a18bc8b6dbb15a22af29205`. The local read-only clone (`../immich/`) was removed on 2026-11-27; to compare with upstream, clone github.com/immich-app/immich and check out that commit.
+**Telegram baseline:** Bot API 10.4 / TDLib docs (2026-11-18). The page snapshots in `../sources/` were removed on 2026-11-27; the source URLs are listed in [TELEGRAM_API_ANALYSIS.md](TELEGRAM_API_ANALYSIS.md).
 
 ## Current plan
 
@@ -39,13 +39,15 @@
 | 2026-11-22 | App named **Ambry** (Keepsake was one letter from the Keepsafe photo vault); amber "sunrise in an arched alcove" logo |
 | 2026-11-22 | Encryption becomes a setting (on by default); files uploaded with it off are plain files viewable in Telegram |
 | 2026-11-22 | Idea "one supergroup, every album a topic" reviewed and dropped: it exposes album names, ties album deletion to photo deletion and slows album edits; albums stay in the encrypted index |
+| 2026-11-27 | Project folder cleaned: build caches deleted; `poc-android/`, the `immich/` clone and `sources/` moved to the Recycle Bin; Immich's Play store listing (`android/metadata`, `android/fastlane`) removed from the repo |
+| 2026-11-27 | Phase 10: large files are split into parts (encrypted above 512 MiB into 256 MiB parts, plain above 1.95 GiB); uploads resume per part; WorkManager 2.10.5 for Android 15's background limit. The optional second-account mirror is not built. Details: [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) §8 |
 
 ## Evidence tags used in the docs
 
 | Tag | Meaning |
 |---|---|
 | **[SRC]** | Verified in Immich source at the commit above |
-| **[DOC]** | Verified in official documentation (copies in `../sources/`) |
+| **[DOC]** | Verified in official documentation (the local copies in `../sources/` were removed on 2026-11-27) |
 | **[3P]** | Third-party source; verify before relying on it |
 | **[ASSUMPTION]** | Planning estimate |
 | **[PoC]** | Unknown until measured in Phase 1 |
@@ -55,7 +57,8 @@
 
 ```
 D:\immich-telegram-research\
-├── immich\    read-only clone of immich-app/immich (unmodified)
-├── sources\   official Telegram / TDLib page snapshots (evidence)
-└── docs\      this folder
+├── keepsake\      the Ambry app: mobile\ (Flutter + Kotlin), native\, i18n\, branding\, open-api\
+├── website\       landing page (ambry.vikashin.tech) and privacy page
+├── docs\          this folder (store-assets\, ui-ux\)
+└── ambry-launch\  launch video project (not in git)
 ```

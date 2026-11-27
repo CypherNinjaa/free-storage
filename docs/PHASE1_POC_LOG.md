@@ -1,7 +1,7 @@
 # Phase 1 PoC — Test App & Measurement Log
 
 > **Tracks:** [ARCHITECTURE_SERVERLESS_ANDROID.md](ARCHITECTURE_SERVERLESS_ANDROID.md) §11 (Phase 1) & [TELEGRAM_API_ANALYSIS.md](TELEGRAM_API_ANALYSIS.md) §6 (U1–U8).
-> **App location:** `../poc-android/` (Kotlin + Jetpack Compose + TDLib 1.8.65 `libtdjson.so` + Media3 ExoPlayer + WorkManager).
+> **App location:** `../poc-android/` (Kotlin + Jetpack Compose + TDLib 1.8.65 `libtdjson.so` + Media3 ExoPlayer + WorkManager). Removed on 2026-11-27 because the Ambry app replaced it; this log keeps its results.
 > **Device tested:** Physical Android (`arm64-v8a`, `NNQSKRL7AI7LOF65`), non-Premium dedicated Telegram account, channel `-1004310008988`.
 > **Test date:** 2026-11-21.
 > **Verdict:** **GO for Phase 2.** Every core technical hypothesis passed on a real Android phone.

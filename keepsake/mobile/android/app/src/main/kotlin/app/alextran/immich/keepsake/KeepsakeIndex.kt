@@ -42,8 +42,17 @@ data class IndexRecord(
   /** [KeepsakeIndex.FORMAT_ENCRYPTED] (IMTG segments) or [KeepsakeIndex.FORMAT_PLAIN] (the original file as is). */
   val format: Int = KeepsakeIndex.FORMAT_ENCRYPTED,
   val seq: Long = 0,
+  /**
+   * Number of Telegram files holding the asset. Split assets (more than one) list every part in the parts table;
+   * [chatId], [messageId] and [fileId] then name part 0 and [encryptedSize] is the size of all parts together.
+   */
+  val partCount: Int = 1,
+  /** Original bytes per part of a split asset ([PartLayout.partPlainBytes]); 0 otherwise. */
+  val partBytes: Long = 0,
 ) {
   val isEncrypted: Boolean get() = format == KeepsakeIndex.FORMAT_ENCRYPTED
+
+  val layout: PartLayout? get() = if (partCount > 1) PartLayout(sizeBytes, partBytes, isEncrypted) else null
 }
 
 data class IndexChanges(val records: List<IndexRecord>, val deletedIds: List<String>, val nextSeq: Long, val hasMore: Boolean)
@@ -116,7 +125,9 @@ class KeepsakeIndex(context: Context, val file: File) :
         seq INTEGER NOT NULL,
         description TEXT,
         rating INTEGER,
-        format INTEGER NOT NULL DEFAULT $FORMAT_ENCRYPTED
+        format INTEGER NOT NULL DEFAULT $FORMAT_ENCRYPTED,
+        part_count INTEGER NOT NULL DEFAULT 1,
+        part_bytes INTEGER NOT NULL DEFAULT 0
       )
       """.trimIndent()
     )
@@ -126,6 +137,7 @@ class KeepsakeIndex(context: Context, val file: File) :
     db.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     db.execSQL("INSERT INTO meta (key, value) VALUES ('seq', '0')")
     createAlbumTables(db)
+    createPartTable(db)
   }
 
   override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -142,6 +154,28 @@ class KeepsakeIndex(context: Context, val file: File) :
       val maxRowId = db.rawQuery("SELECT COALESCE(MAX(rowid), 0) FROM assets", null).use { it.moveToFirst(); it.getLong(0) }
       db.execSQL("UPDATE meta SET value = ? WHERE key = 'seq'", arrayOf((head + maxRowId).toString()))
     }
+    if (oldVersion < 4) {
+      db.execSQL("ALTER TABLE assets ADD COLUMN part_count INTEGER NOT NULL DEFAULT 1")
+      db.execSQL("ALTER TABLE assets ADD COLUMN part_bytes INTEGER NOT NULL DEFAULT 0")
+      createPartTable(db)
+    }
+  }
+
+  /** The Telegram messages of split assets, part 0 included. Assets stored in one file have no rows here. */
+  private fun createPartTable(db: SQLiteDatabase) {
+    db.execSQL(
+      """
+      CREATE TABLE asset_parts (
+        asset_id TEXT NOT NULL,
+        part_index INTEGER NOT NULL,
+        chat_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL,
+        file_id INTEGER NOT NULL,
+        stored_size INTEGER NOT NULL,
+        PRIMARY KEY (asset_id, part_index)
+      )
+      """.trimIndent()
+    )
   }
 
   private fun createAlbumTables(db: SQLiteDatabase) {
@@ -207,10 +241,43 @@ class KeepsakeIndex(context: Context, val file: File) :
     it.getLong(0)
   }
 
-  fun upsert(record: IndexRecord) = write { db, seqs ->
-    db.insertWithOnConflict("assets", null, record.toValues(seqs.next()), SQLiteDatabase.CONFLICT_REPLACE)
-    db.delete("tombstones", "id = ?", arrayOf(record.id))
+  /** Adds or replaces an asset; [parts] lists every Telegram message of a split asset (empty otherwise). */
+  fun upsert(record: IndexRecord, parts: List<PartRef> = emptyList()) = upsertAll(listOf(record to parts))
+
+  /** [upsert] for many assets in one transaction (a restore adds thousands). */
+  fun upsertAll(entries: List<Pair<IndexRecord, List<PartRef>>>) {
+    if (entries.isEmpty()) return
+    write { db, seqs ->
+      for ((record, parts) in entries) {
+        db.insertWithOnConflict("assets", null, record.toValues(seqs.next()), SQLiteDatabase.CONFLICT_REPLACE)
+        db.delete("tombstones", "id = ?", arrayOf(record.id))
+        db.delete("asset_parts", "asset_id = ?", arrayOf(record.id))
+        for (part in parts) {
+          db.insertOrThrow("asset_parts", null, ContentValues().apply {
+            put("asset_id", record.id)
+            put("part_index", part.index)
+            put("chat_id", part.chatId)
+            put("message_id", part.messageId)
+            put("file_id", part.fileId)
+            put("stored_size", part.storedSize)
+          })
+        }
+      }
+    }
   }
+
+  /** The Telegram messages of a split asset, in order; empty for an asset stored in one file. */
+  fun parts(assetId: String): List<PartRef> =
+    readableDatabase.rawQuery(
+      "SELECT part_index, chat_id, message_id, file_id, stored_size FROM asset_parts WHERE asset_id = ? ORDER BY part_index",
+      arrayOf(assetId),
+    ).use { cursor ->
+      buildList {
+        while (cursor.moveToNext()) {
+          add(PartRef(cursor.getInt(0), cursor.getLong(1), cursor.getLong(2), cursor.getInt(3), cursor.getLong(4)))
+        }
+      }
+    }
 
   fun update(ids: List<String>, values: ContentValues): Int = write { db, seqs ->
     ids.sumOf { id ->
@@ -222,6 +289,22 @@ class KeepsakeIndex(context: Context, val file: File) :
   @Synchronized
   fun updateFileId(id: String, fileId: Int) {
     writableDatabase.update("assets", ContentValues().apply { put("file_id", fileId) }, "id = ?", arrayOf(id))
+  }
+
+  /** [updateFileId] for many assets in one transaction. Like it, this does not advance the change sequence. */
+  @Synchronized
+  fun updateFileIds(updates: Map<String, Int>) {
+    if (updates.isEmpty()) return
+    val db = writableDatabase
+    db.beginTransaction()
+    try {
+      for ((id, fileId) in updates) {
+        db.update("assets", ContentValues().apply { put("file_id", fileId) }, "id = ?", arrayOf(id))
+      }
+      db.setTransactionSuccessful()
+    } finally {
+      db.endTransaction()
+    }
   }
 
   @Synchronized
@@ -246,6 +329,7 @@ class KeepsakeIndex(context: Context, val file: File) :
   fun delete(ids: List<String>): Int = write { db, seqs ->
     ids.sumOf { id ->
       val removed = db.delete("assets", "id = ?", arrayOf(id))
+      db.delete("asset_parts", "asset_id = ?", arrayOf(id))
       db.insertWithOnConflict("tombstones", null, ContentValues().apply {
         put("id", id)
         put("seq", seqs.next())
@@ -293,6 +377,7 @@ class KeepsakeIndex(context: Context, val file: File) :
     // Opening the copy upgrades an older snapshot first; then every row is renumbered so it projects again.
     write { db, seqs ->
       db.execSQL("UPDATE assets SET file_id = -1, local_id = NULL, has_thumbnail = 0")
+      db.execSQL("UPDATE asset_parts SET file_id = -1")
       renumber(db, seqs, "assets")
       renumber(db, seqs, "albums")
       renumber(db, seqs, "album_assets")
@@ -324,6 +409,18 @@ class KeepsakeIndex(context: Context, val file: File) :
       SQLiteDatabase.CONFLICT_REPLACE,
     )
   }
+
+  @Synchronized
+  fun deleteMeta(key: String) {
+    writableDatabase.delete("meta", "key = ?", arrayOf(key))
+  }
+
+  /** Bookkeeping values whose key starts with [prefix], by key. */
+  fun metaWithPrefix(prefix: String): Map<String, String> =
+    readableDatabase.rawQuery(
+      "SELECT key, value FROM meta WHERE substr(key, 1, ?) = ?",
+      arrayOf(prefix.length.toString(), prefix),
+    ).use { cursor -> buildMap { while (cursor.moveToNext()) put(cursor.getString(0), cursor.getString(1)) } }
 
   fun checkpoint() {
     writableDatabase.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null).use { it.moveToFirst() }
@@ -558,6 +655,8 @@ class KeepsakeIndex(context: Context, val file: File) :
     put("description", description)
     put("rating", rating)
     put("format", format)
+    put("part_count", partCount)
+    put("part_bytes", partBytes)
     put("seq", seq)
   }
 
@@ -596,6 +695,8 @@ class KeepsakeIndex(context: Context, val file: File) :
     rating = int("rating"),
     format = int("format") ?: FORMAT_ENCRYPTED,
     seq = long("seq")!!,
+    partCount = int("part_count") ?: 1,
+    partBytes = long("part_bytes") ?: 0,
   )
 
   private fun Cursor.toAlbum(): AlbumRecord = AlbumRecord(
@@ -619,7 +720,7 @@ class KeepsakeIndex(context: Context, val file: File) :
   private fun Cursor.double(column: String): Double? = getColumnIndexOrThrow(column).let { if (isNull(it)) null else getDouble(it) }
 
   companion object {
-    const val SCHEMA_VERSION = 3
+    const val SCHEMA_VERSION = 4
     const val TYPE_IMAGE = 1
     const val TYPE_VIDEO = 2
     const val FORMAT_PLAIN = 0
